@@ -16,6 +16,7 @@
 
 #pragma once
 #include <stratosphere.hpp>
+#include "fsmitm_romfs_heap.hpp"
 
 namespace ams::mitm::fs::romfs {
 
@@ -25,52 +26,6 @@ namespace ams::mitm::fs::romfs {
         LooseSdFile,
         Metadata,
         Memory,
-    };
-
-    enum AllocationType {
-        AllocationType_FileName,
-        AllocationType_DirName,
-        AllocationType_FullPath,
-        AllocationType_SourceInfo,
-        AllocationType_BuildFileContext,
-        AllocationType_BuildDirContext,
-        AllocationType_TableCache,
-        AllocationType_DirPointerArray,
-        AllocationType_DirContextSet,
-        AllocationType_FileContextSet,
-        AllocationType_Memory,
-
-        AllocationType_Count,
-    };
-
-    void *AllocateTracked(AllocationType type, size_t size);
-    void FreeTracked(AllocationType type, void *p, size_t size);
-
-    template<typename T, typename... Args>
-    T *AllocateTyped(AllocationType type, Args &&... args) {
-        void *mem = AllocateTracked(type, sizeof(T));
-        return std::construct_at(static_cast<T *>(mem), std::forward<Args>(args)...);
-    }
-
-    template<AllocationType AllocType, typename T>
-    class TrackedAllocator {
-        public:
-            using value_type = T;
-
-            template<typename U>
-            struct rebind {
-                using other = TrackedAllocator<AllocType, U>;
-            };
-        public:
-            TrackedAllocator() = default;
-
-            T *allocate(size_t n) {
-                return static_cast<T *>(AllocateTracked(AllocType, sizeof(T) * n));
-            }
-
-            void deallocate(T *p, size_t n) {
-                FreeTracked(AllocType, p, sizeof(T) * n);
-            }
     };
 
     struct SourceInfo {
@@ -373,7 +328,5 @@ namespace ams::mitm::fs::romfs {
 
             void Build(SourceInfoVector *out_infos);
     };
-
-    Result ConfigureDynamicHeap(u64 *out_size, ncm::ProgramId program_id, const cfg::OverrideStatus &status, bool is_application);
 
 }

@@ -17,7 +17,7 @@
 #include "../amsmitm_initialization.hpp"
 #include "mitm_pm_service.hpp"
 #include "mitm_pm_service.hpp"
-#include "../fs_mitm/fsmitm_romfs.hpp"
+#include "../fs_mitm/fsmitm_romfs_heap.hpp"
 
 namespace ams::mitm::pm {
 

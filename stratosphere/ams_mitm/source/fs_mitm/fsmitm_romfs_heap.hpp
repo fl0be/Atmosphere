@@ -1,0 +1,73 @@
+/*
+ * Copyright (c) Atmosphère-NX
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+#include <stratosphere.hpp>
+
+namespace ams::mitm::fs::romfs {
+
+    enum AllocationType {
+        AllocationType_FileName,
+        AllocationType_DirName,
+        AllocationType_FullPath,
+        AllocationType_SourceInfo,
+        AllocationType_BuildFileContext,
+        AllocationType_BuildDirContext,
+        AllocationType_TableCache,
+        AllocationType_DirPointerArray,
+        AllocationType_DirContextSet,
+        AllocationType_FileContextSet,
+        AllocationType_Memory,
+
+        AllocationType_Count,
+    };
+
+    void *AllocateTracked(AllocationType type, size_t size);
+    void FreeTracked(AllocationType type, void *p, size_t size);
+
+    template<typename T, typename... Args>
+    T *AllocateTyped(AllocationType type, Args &&... args) {
+        void *mem = AllocateTracked(type, sizeof(T));
+        return std::construct_at(static_cast<T *>(mem), std::forward<Args>(args)...);
+    }
+
+    template<AllocationType AllocType, typename T>
+    class TrackedAllocator {
+        public:
+            using value_type = T;
+
+            template<typename U>
+            struct rebind {
+                using other = TrackedAllocator<AllocType, U>;
+            };
+        public:
+            TrackedAllocator() = default;
+
+            T *allocate(size_t n) {
+                return static_cast<T *>(AllocateTracked(AllocType, sizeof(T) * n));
+            }
+
+            void deallocate(T *p, size_t n) {
+                FreeTracked(AllocType, p, sizeof(T) * n);
+            }
+    };
+
+    void InitializeDynamicHeapForBuildRomfs(ncm::ProgramId program_id);
+    void FinalizeDynamicHeapForBuildRomfs();
+
+    Result ConfigureDynamicHeap(u64 *out_size, ncm::ProgramId program_id, const cfg::OverrideStatus &status, bool is_application);
+
+}
