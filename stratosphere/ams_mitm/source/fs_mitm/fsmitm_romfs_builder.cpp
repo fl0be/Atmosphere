@@ -15,7 +15,7 @@
  */
 #include <stratosphere.hpp>
 #include "../amsmitm_fs_utils.hpp"
-#include "fsmitm_romfs.hpp"
+#include "fsmitm_romfs_builder.hpp"
 #include "fsmitm_romfs_format.hpp"
 #include "fsmitm_romfs_tables.hpp"
 

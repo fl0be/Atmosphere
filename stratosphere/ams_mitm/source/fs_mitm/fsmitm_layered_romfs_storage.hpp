@@ -16,7 +16,7 @@
 
 #pragma once
 #include <stratosphere.hpp>
-#include "fsmitm_romfs.hpp"
+#include "fsmitm_romfs_builder.hpp"
 
 namespace ams::mitm::fs {
 
