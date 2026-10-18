@@ -210,13 +210,13 @@ namespace ams::mitm::fs {
         }
 
         void MergedTree::AddStorageFiles(ams::fs::IStorage *storage, DataSourceType source_type) {
-            Header header;
-            R_ABORT_UNLESS(storage->Read(0, std::addressof(header), sizeof(Header)));
-            AMS_ABORT_UNLESS(header.header_size == sizeof(Header));
+            RomfsHeader header;
+            R_ABORT_UNLESS(storage->Read(0, std::addressof(header), sizeof(RomfsHeader)));
+            AMS_ABORT_UNLESS(header.size == sizeof(RomfsHeader));
 
             /* Read tables. */
-            DirectoryTableReader dir_table(storage, header.dir_table_ofs, header.dir_table_size);
-            FileTableReader file_table(storage, header.file_table_ofs, header.file_table_size);
+            DirectoryTableReader dir_table(storage, header.directory_entry_offset, header.directory_entry_size);
+            FileTableReader file_table(storage, header.file_entry_offset, header.file_entry_size);
 
             m_cur_source_type = source_type;
             this->VisitDirectory(m_root, 0x0, dir_table, file_table);

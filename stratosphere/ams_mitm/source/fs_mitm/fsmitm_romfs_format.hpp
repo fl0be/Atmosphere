@@ -21,19 +21,7 @@ namespace ams::mitm::fs::romfs {
     constexpr u32 EmptyEntry = 0xFFFFFFFF;
     constexpr size_t FilePartitionOffset = 0x200;
 
-    struct Header {
-        s64 header_size;
-        s64 dir_hash_table_ofs;
-        s64 dir_hash_table_size;
-        s64 dir_table_ofs;
-        s64 dir_table_size;
-        s64 file_hash_table_ofs;
-        s64 file_hash_table_size;
-        s64 file_table_ofs;
-        s64 file_table_size;
-        s64 file_partition_ofs;
-    };
-    static_assert(util::is_pod<Header>::value && sizeof(Header) == 0x50);
+    using RomfsHeader = ::ams::fs::RomFileSystemInformation;
 
     struct DirectoryEntry {
         u32 parent;

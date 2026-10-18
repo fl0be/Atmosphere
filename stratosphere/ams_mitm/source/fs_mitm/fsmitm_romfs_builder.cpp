@@ -43,7 +43,7 @@ namespace ams::mitm::fs {
             m_file_hash_table_size = sizeof(u32) * num_file_hash_table_entries;
 
             /* Allocate metadata, make pointers. */
-            Header *header = reinterpret_cast<Header *>(AllocateTracked(AllocationType_Memory, sizeof(Header)));
+            RomfsHeader *header = reinterpret_cast<RomfsHeader *>(AllocateTracked(AllocationType_Memory, sizeof(RomfsHeader)));
             std::memset(header, 0x00, sizeof(*header));
 
             /* Open metadata file. */
@@ -300,21 +300,21 @@ namespace ams::mitm::fs {
             m_tree->m_files.clear();
 
             /* Set header fields. */
-            header->header_size          = sizeof(*header);
-            header->file_hash_table_size = m_file_hash_table_size;
-            header->file_table_size      = m_tree->m_file_table_size;
-            header->dir_hash_table_size  = m_dir_hash_table_size;
-            header->dir_table_size       = m_tree->m_dir_table_size;
-            header->file_partition_ofs   = FilePartitionOffset;
-            header->dir_hash_table_ofs   = util::AlignUp(FilePartitionOffset + m_file_partition_size, 4);
-            header->dir_table_ofs        = header->dir_hash_table_ofs + header->dir_hash_table_size;
-            header->file_hash_table_ofs  = header->dir_table_ofs + header->dir_table_size;
-            header->file_table_ofs       = header->file_hash_table_ofs + header->file_hash_table_size;
+            header->size                    = sizeof(*header);
+            header->file_bucket_size        = m_file_hash_table_size;
+            header->file_entry_size         = m_tree->m_file_table_size;
+            header->directory_bucket_size   = m_dir_hash_table_size;
+            header->directory_entry_size    = m_tree->m_dir_table_size;
+            header->body_offset             = FilePartitionOffset;
+            header->directory_bucket_offset = util::AlignUp(FilePartitionOffset + m_file_partition_size, 4);
+            header->directory_entry_offset  = header->directory_bucket_offset + header->directory_bucket_size;
+            header->file_bucket_offset      = header->directory_entry_offset + header->directory_entry_size;
+            header->file_entry_offset       = header->file_bucket_offset + header->file_bucket_size;
 
             /* Save metadata to the SD card, to save on memory space. */
             {
                 R_ABORT_UNLESS(fsFileFlush(std::addressof(metadata_file)));
-                out_infos->emplace_back(header->dir_hash_table_ofs, metadata_size, DataSourceType::Metadata, new RemoteFile(metadata_file));
+                out_infos->emplace_back(header->directory_bucket_offset, metadata_size, DataSourceType::Metadata, new RemoteFile(metadata_file));
             }
         }
 
