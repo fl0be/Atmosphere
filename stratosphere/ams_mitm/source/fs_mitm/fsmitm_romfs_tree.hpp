@@ -17,6 +17,7 @@
 #pragma once
 #include <stratosphere.hpp>
 #include "fsmitm_romfs_sources.hpp"
+#include "fsmitm_romfs_format.hpp"
 
 namespace ams::mitm::fs::romfs {
 
@@ -51,7 +52,7 @@ namespace ams::mitm::fs::romfs {
 
         struct RootTag{};
 
-        BuildDirectoryContext(RootTag) : parent(nullptr), child(nullptr), sibling(nullptr), file(nullptr), path_len(0), entry_offset(0), hash_value(0xFFFFFFFF) {
+        BuildDirectoryContext(RootTag) : parent(nullptr), child(nullptr), sibling(nullptr), file(nullptr), path_len(0), entry_offset(0), hash_value(EmptyEntry) {
             this->path = static_cast<char *>(AllocateTracked(AllocationType_DirName, 1));
             this->path[0] = '\x00';
         }
@@ -79,7 +80,7 @@ namespace ams::mitm::fs::romfs {
                 return 0;
             }
 
-            return this->parent->GetPathLength() + 1 + this->path_len;
+            return GetChildPathLength(this->parent->GetPathLength(), this->path_len);
         }
 
         size_t GetPath(char *dst) const {
@@ -89,10 +90,11 @@ namespace ams::mitm::fs::romfs {
             }
 
             const size_t parent_len = this->parent->GetPath(dst);
+            const size_t len = GetChildPathLength(parent_len, this->path_len);
             dst[parent_len] = '/';
             std::memcpy(dst + parent_len + 1, this->path, this->path_len);
-            dst[parent_len + 1 + this->path_len] = '\x00';
-            return parent_len + 1 + this->path_len;
+            dst[len] = '\x00';
+            return len;
         }
 
         bool HasHashMark() const {
@@ -126,7 +128,7 @@ namespace ams::mitm::fs::romfs {
         u32 hash_value;
         DataSourceType source_type;
 
-        BuildFileContext(const char *entry_name, size_t entry_name_len, s64 sz, s64 o_o, DataSourceType type) : parent(nullptr), sibling(nullptr), offset(0), size(sz), orig_offset(o_o), entry_offset(0), hash_value(0xFFFFFFFF), source_type(type) {
+        BuildFileContext(const char *entry_name, size_t entry_name_len, s64 sz, s64 o_o, DataSourceType type) : parent(nullptr), sibling(nullptr), offset(0), size(sz), orig_offset(o_o), entry_offset(0), hash_value(EmptyEntry), source_type(type) {
             this->path_len = entry_name_len;
             this->path = static_cast<char *>(AllocateTracked(AllocationType_FileName, this->path_len + 1));
             std::memcpy(this->path, entry_name, entry_name_len);
@@ -149,7 +151,7 @@ namespace ams::mitm::fs::romfs {
                 return 0;
             }
 
-            return this->parent->GetPathLength() + 1 + this->path_len;
+            return GetChildPathLength(this->parent->GetPathLength(), this->path_len);
         }
 
         size_t GetPath(char *dst) const {
@@ -159,10 +161,11 @@ namespace ams::mitm::fs::romfs {
             }
 
             const size_t parent_len = this->parent->GetPath(dst);
+            const size_t len = GetChildPathLength(parent_len, this->path_len);
             dst[parent_len] = '/';
             std::memcpy(dst + parent_len + 1, this->path, this->path_len);
-            dst[parent_len + 1 + this->path_len] = '\x00';
-            return parent_len + 1 + this->path_len;
+            dst[len] = '\x00';
+            return len;
         }
 
         bool HasHashMark() const {

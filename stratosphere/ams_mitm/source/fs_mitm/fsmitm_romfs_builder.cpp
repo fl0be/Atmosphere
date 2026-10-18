@@ -66,7 +66,7 @@ namespace ams::mitm::fs {
                     cur_file = it.get();
 
                     /* By default, pad to 0x10 alignment. */
-                    m_file_partition_size = util::AlignUp(m_file_partition_size, 0x10);
+                    m_file_partition_size = AlignFileContent(m_file_partition_size);
 
                     /* Check if extra padding is present in original source, preserve it to make our life easier. */
                     const bool is_storage_or_file = cur_file->source_type == DataSourceType::Storage || cur_file->source_type == DataSourceType::File;
@@ -82,7 +82,7 @@ namespace ams::mitm::fs {
                     cur_file->offset = m_file_partition_size;
                     m_file_partition_size += cur_file->size;
                     cur_file->entry_offset = entry_offset;
-                    entry_offset += sizeof(FileEntry) + util::AlignUp(cur_file->path_len, 4);
+                    entry_offset += EntrySize<FileEntry>(cur_file->path_len);
 
                     /* Save current file as prev for next iteration. */
                     prev_file = cur_file;
@@ -102,7 +102,7 @@ namespace ams::mitm::fs {
                 for (const auto &it : m_tree->m_directories) {
                     cur_dir = it.get();
                     cur_dir->entry_offset = entry_offset;
-                    entry_offset += sizeof(DirectoryEntry) + util::AlignUp(cur_dir->path_len, 4);
+                    entry_offset += EntrySize<DirectoryEntry>(cur_dir->path_len);
                 }
                 /* Assign deferred parent/sibling ownership. */
                 for (auto it = m_tree->m_directories.rbegin(); it != m_tree->m_directories.rend(); it++) {
@@ -118,13 +118,13 @@ namespace ams::mitm::fs {
             /* Set all files' hash value = hash index. */
             for (const auto &it : m_tree->m_files) {
                 BuildFileContext *cur_file = it.get();
-                cur_file->hash_value = CalculatePathHash(cur_file->parent->entry_offset, cur_file->path, 0, cur_file->path_len) % num_file_hash_table_entries;
+                cur_file->hash_value = GetBucketIndex(cur_file->parent->entry_offset, cur_file->path, cur_file->path_len, num_file_hash_table_entries);
             }
 
             /* Set all directories' hash value = hash index. */
             for (const auto &it : m_tree->m_directories) {
                 BuildDirectoryContext *cur_dir = it.get();
-                cur_dir->hash_value = CalculatePathHash(cur_dir == m_tree->m_root ? 0 : cur_dir->parent->entry_offset, cur_dir->path, 0, cur_dir->path_len) % num_dir_hash_table_entries;
+                cur_dir->hash_value = GetBucketIndex(cur_dir == m_tree->m_root ? RootEntryOffset : cur_dir->parent->entry_offset, cur_dir->path, cur_dir->path_len, num_dir_hash_table_entries);
             }
 
             /* Write hash tables. */
@@ -195,7 +195,7 @@ namespace ams::mitm::fs {
                     cur_dir->child_offset   = (cur_dir->child   == nullptr) ? EmptyEntry : cur_dir->child->entry_offset;
                     cur_dir->file_offset    = (cur_dir->file    == nullptr) ? EmptyEntry : cur_dir->file->entry_offset;
 
-                    cur_dir->parent_offset  = cur_dir == m_tree->m_root ? 0 : cur_dir->parent->entry_offset;
+                    cur_dir->parent_offset  = cur_dir == m_tree->m_root ? RootEntryOffset : cur_dir->parent->entry_offset;
                 }
 
                 /* Replace all files' sibling pointers. */
@@ -224,14 +224,7 @@ namespace ams::mitm::fs {
                     cur_entry->hash    = cur_file->hash_value;
 
                     /* Set name. */
-                    const u32 name_size = cur_file->path_len;
-                    cur_entry->name_size = name_size;
-                    if (name_size) {
-                        std::memcpy(cur_entry->name, cur_file->path, name_size);
-                        for (size_t i = name_size; i < util::AlignUp(name_size, 4); i++) {
-                            cur_entry->name[i] = 0;
-                        }
-                    }
+                    SetEntryName(cur_entry, cur_file->path, cur_file->path_len);
 
                     /* Emplace a source. */
                     switch (cur_file->source_type) {
@@ -283,14 +276,7 @@ namespace ams::mitm::fs {
                     cur_entry->hash    = cur_dir->hash_value;
 
                     /* Set name. */
-                    const u32 name_size = cur_dir->path_len;
-                    cur_entry->name_size = name_size;
-                    if (name_size) {
-                        std::memcpy(cur_entry->name, cur_dir->path, name_size);
-                        for (size_t i = name_size; i < util::AlignUp(name_size, 4); i++) {
-                            cur_entry->name[i] = 0;
-                        }
-                    }
+                    SetEntryName(cur_entry, cur_dir->path, cur_dir->path_len);
                 }
             }
 
@@ -306,7 +292,7 @@ namespace ams::mitm::fs {
             header->directory_bucket_size   = m_dir_hash_table_size;
             header->directory_entry_size    = m_tree->m_dir_table_size;
             header->body_offset             = FilePartitionOffset;
-            header->directory_bucket_offset = util::AlignUp(FilePartitionOffset + m_file_partition_size, 4);
+            header->directory_bucket_offset = AlignMetadataOffset(FilePartitionOffset + m_file_partition_size);
             header->directory_entry_offset  = header->directory_bucket_offset + header->directory_bucket_size;
             header->file_bucket_offset      = header->directory_entry_offset + header->directory_entry_size;
             header->file_entry_offset       = header->file_bucket_offset + header->file_bucket_size;

@@ -51,7 +51,7 @@ namespace ams::mitm::fs {
             AMS_ABORT_UNLESS(res.second);
             m_root = res.first->get();
             m_num_dirs = 1;
-            m_dir_table_size = 0x18;
+            m_dir_table_size = EntrySize<DirectoryEntry>(0);
         }
 
         MergedTree::~MergedTree() {
@@ -76,7 +76,7 @@ namespace ams::mitm::fs {
 
             /* Add a new directory. */
             m_num_dirs++;
-            m_dir_table_size += sizeof(DirectoryEntry) + util::AlignUp(child_ctx->path_len, 4);
+            m_dir_table_size += EntrySize<DirectoryEntry>(child_ctx->path_len);
 
             *out = child_ctx.get();
             m_directories.emplace(std::move(child_ctx));
@@ -93,7 +93,7 @@ namespace ams::mitm::fs {
 
             /* Add a new file. */
             m_num_files++;
-            m_file_table_size += sizeof(FileEntry) + util::AlignUp(file_ctx->path_len, 4);
+            m_file_table_size += EntrySize<FileEntry>(file_ctx->path_len);
             m_files.emplace(std::move(file_ctx));
         }
 
