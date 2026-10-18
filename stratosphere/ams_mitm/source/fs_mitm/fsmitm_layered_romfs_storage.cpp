@@ -389,18 +389,19 @@ namespace ams::mitm::fs {
 
     void LayeredRomfsStorageImpl::InitializeImpl() {
         /* Build new virtual romfs. */
-        romfs::Builder builder(m_program_id);
+        romfs::MergedTree tree(m_program_id);
 
         if (mitm::IsInitialized()) {
-            builder.AddSdFiles();
+            tree.AddSdFiles();
         }
         if (m_file_romfs) {
-            builder.AddStorageFiles(m_file_romfs.get(), romfs::DataSourceType::File);
+            tree.AddStorageFiles(m_file_romfs.get(), romfs::DataSourceType::File);
         }
         if (m_storage_romfs) {
-            builder.AddStorageFiles(m_storage_romfs.get(), romfs::DataSourceType::Storage);
+            tree.AddStorageFiles(m_storage_romfs.get(), romfs::DataSourceType::Storage);
         }
 
+        romfs::Builder builder(std::addressof(tree));
         builder.Build(std::addressof(m_source_infos));
 
         m_is_initialized = true;
