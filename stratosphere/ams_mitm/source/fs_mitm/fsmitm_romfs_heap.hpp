@@ -35,6 +35,14 @@ namespace ams::mitm::fs::romfs {
         AllocationType_Count,
     };
 
+    class ScopedHeapLock {
+        NON_COPYABLE(ScopedHeapLock);
+        NON_MOVEABLE(ScopedHeapLock);
+        public:
+            explicit ScopedHeapLock(ncm::ProgramId program_id);
+            ~ScopedHeapLock();
+    };
+
     void *AllocateTracked(AllocationType type, size_t size);
     void FreeTracked(AllocationType type, void *p, size_t size);
 
@@ -64,9 +72,6 @@ namespace ams::mitm::fs::romfs {
                 FreeTracked(AllocType, p, sizeof(T) * n);
             }
     };
-
-    void InitializeDynamicHeapForBuildRomfs(ncm::ProgramId program_id);
-    void FinalizeDynamicHeapForBuildRomfs();
 
     Result ConfigureDynamicHeap(u64 *out_size, ncm::ProgramId program_id, const cfg::OverrideStatus &status, bool is_application);
 

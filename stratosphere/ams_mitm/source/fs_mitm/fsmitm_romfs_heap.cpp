@@ -234,6 +234,8 @@ namespace ams::mitm::fs {
                 R_SUCCEED();
             }
 
+            constinit os::SdkMutex g_romfs_build_lock;
+
             /* Dynamic allocation globals. */
             constinit ncm::ProgramId g_dynamic_heap_program_id{};
 
@@ -255,6 +257,47 @@ namespace ams::mitm::fs {
                 }
             }
 
+            void InitializeDynamicHeapForBuildRomfs(ncm::ProgramId program_id) {
+                if (program_id == g_dynamic_heap_program_id && g_dynamic_app_heap.heap_size > 0) {
+                    /* This romfs will build out of dynamic heap. */
+                    g_building_from_dynamic_heap = true;
+
+                    g_dynamic_app_heap.Map();
+
+                    if (g_dynamic_sys_heap.heap_size > 0) {
+                        g_dynamic_sys_heap.Map();
+                    }
+
+                    if (g_dynamic_let_heap.heap_size > 0) {
+                        g_dynamic_let_heap.Map();
+                    }
+                }
+            }
+
+            void FinalizeDynamicHeapForBuildRomfs() {
+                /* We are definitely no longer building out of dynamic heap. */
+                g_building_from_dynamic_heap = false;
+
+                g_dynamic_app_heap.TryRelease();
+                g_dynamic_let_heap.Reset();
+            }
+
+        }
+
+        ScopedHeapLock::ScopedHeapLock(ncm::ProgramId program_id) {
+            /* Ensure only one romfs is built at any time. */
+            g_romfs_build_lock.Lock();
+
+            /* If we should be using dynamic heap, turn it on. */
+            InitializeDynamicHeapForBuildRomfs(program_id);
+        }
+
+        ScopedHeapLock::~ScopedHeapLock() {
+            /* If we have nothing remaining in dynamic heap, release it. */
+            FinalizeDynamicHeapForBuildRomfs();
+
+            /* Release the romfs build lock. */
+            g_romfs_build_lock.Unlock();
         }
 
         void *AllocateTracked(AllocationType type, size_t size) {
@@ -301,31 +344,6 @@ namespace ams::mitm::fs {
             } else {
                 std::free(p);
             }
-        }
-
-        void InitializeDynamicHeapForBuildRomfs(ncm::ProgramId program_id) {
-            if (program_id == g_dynamic_heap_program_id && g_dynamic_app_heap.heap_size > 0) {
-                /* This romfs will build out of dynamic heap. */
-                g_building_from_dynamic_heap = true;
-
-                g_dynamic_app_heap.Map();
-
-                if (g_dynamic_sys_heap.heap_size > 0) {
-                    g_dynamic_sys_heap.Map();
-                }
-
-                if (g_dynamic_let_heap.heap_size > 0) {
-                    g_dynamic_let_heap.Map();
-                }
-            }
-        }
-
-        void FinalizeDynamicHeapForBuildRomfs() {
-            /* We are definitely no longer building out of dynamic heap. */
-            g_building_from_dynamic_heap = false;
-
-            g_dynamic_app_heap.TryRelease();
-            g_dynamic_let_heap.Reset();
         }
 
         Result ConfigureDynamicHeap(u64 *out_size, ncm::ProgramId program_id, const cfg::OverrideStatus &status, bool is_application) {

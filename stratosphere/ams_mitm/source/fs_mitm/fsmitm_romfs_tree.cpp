@@ -27,8 +27,6 @@ namespace ams::mitm::fs {
 
         namespace {
 
-            constinit os::SdkMutex g_romfs_build_lock;
-
             constinit os::SdkMutex g_fs_romfs_path_lock;
             constinit char g_fs_romfs_path_buffer[fs::EntryNameLengthMax + 1];
 
@@ -41,11 +39,7 @@ namespace ams::mitm::fs {
         }
 
         MergedTree::MergedTree(ncm::ProgramId program_id) : m_program_id(program_id), m_num_dirs(0), m_num_files(0), m_dir_table_size(0), m_file_table_size(0) {
-            /* Ensure only one romfs is built at any time. */
-            g_romfs_build_lock.Lock();
-
-            /* If we should be using dynamic heap, turn it on. */
-            InitializeDynamicHeapForBuildRomfs(m_program_id);
+            util::ConstructAt(m_heap_lock, program_id);
 
             auto res = m_directories.emplace(std::unique_ptr<BuildDirectoryContext>(AllocateTyped<BuildDirectoryContext>(AllocationType_BuildDirContext, BuildDirectoryContext::RootTag{})));
             AMS_ABORT_UNLESS(res.second);
@@ -55,11 +49,7 @@ namespace ams::mitm::fs {
         }
 
         MergedTree::~MergedTree() {
-            /* If we have nothing remaining in dynamic heap, release it. */
-            FinalizeDynamicHeapForBuildRomfs();
-
-            /* Release the romfs build lock. */
-            g_romfs_build_lock.Unlock();
+            util::DestroyAt(m_heap_lock);
         }
 
 

@@ -213,6 +213,7 @@ namespace ams::mitm::fs::romfs {
             template<AllocationType AllocType, typename T>
             using ContextSet = std::set<std::unique_ptr<T>, Comparator<T>, TrackedAllocator<AllocType, std::unique_ptr<T>>>;
         private:
+            util::TypedStorage<ScopedHeapLock> m_heap_lock;
             ncm::ProgramId m_program_id;
             BuildDirectoryContext *m_root;
             ContextSet<AllocationType_DirContextSet, BuildDirectoryContext> m_directories;
