@@ -53,13 +53,13 @@ namespace ams::mitm::fs::romfs {
         struct RootTag{};
 
         BuildDirectoryContext(RootTag) : parent(nullptr), child(nullptr), sibling(nullptr), file(nullptr), path_len(0), entry_offset(0), hash_value(EmptyEntry) {
-            this->path = static_cast<char *>(AllocateTracked(AllocationType_DirName, 1));
+            this->path = AllocateTracked<char>(AllocationType_DirName, 1);
             this->path[0] = '\x00';
         }
 
         BuildDirectoryContext(const char *entry_name, size_t entry_name_len) : parent(nullptr), child(nullptr), sibling(nullptr), file(nullptr), entry_offset(0) {
             this->path_len = entry_name_len;
-            this->path = static_cast<char *>(AllocateTracked(AllocationType_DirName, this->path_len + 1));
+            this->path = AllocateTracked<char>(AllocationType_DirName, this->path_len + 1);
             std::memcpy(this->path, entry_name, entry_name_len);
             this->path[this->path_len] = '\x00';
         }
@@ -130,7 +130,7 @@ namespace ams::mitm::fs::romfs {
 
         BuildFileContext(const char *entry_name, size_t entry_name_len, s64 sz, s64 o_o, DataSourceType type) : parent(nullptr), sibling(nullptr), offset(0), size(sz), orig_offset(o_o), entry_offset(0), hash_value(EmptyEntry), source_type(type) {
             this->path_len = entry_name_len;
-            this->path = static_cast<char *>(AllocateTracked(AllocationType_FileName, this->path_len + 1));
+            this->path = AllocateTracked<char>(AllocationType_FileName, this->path_len + 1);
             std::memcpy(this->path, entry_name, entry_name_len);
             this->path[this->path_len] = 0;
         }

@@ -100,7 +100,7 @@ namespace ams::mitm::fs {
             AMS_ABORT_UNLESS(num_child_dirs >= 0);
 
             {
-                BuildDirectoryContext **child_dirs = num_child_dirs != 0 ? reinterpret_cast<BuildDirectoryContext **>(AllocateTracked(AllocationType_DirPointerArray, sizeof(BuildDirectoryContext *) * num_child_dirs)) : nullptr;
+                BuildDirectoryContext **child_dirs = num_child_dirs != 0 ? AllocateTracked<BuildDirectoryContext *>(AllocationType_DirPointerArray, sizeof(BuildDirectoryContext *) * num_child_dirs) : nullptr;
                 AMS_ABORT_UNLESS(num_child_dirs == 0 || child_dirs != nullptr);
                 ON_SCOPE_EXIT { if (child_dirs != nullptr) { FreeTracked(AllocationType_DirPointerArray, child_dirs, sizeof(BuildDirectoryContext *) * num_child_dirs); } };
 

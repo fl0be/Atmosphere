@@ -33,11 +33,11 @@ namespace ams::mitm::fs::romfs {
         protected:
             DynamicTableCache(size_t sz) {
                 m_cache_size = util::CeilingPowerOfTwo(std::min(sz, MaxCachedSize));
-                m_cache = AllocateTracked(AllocationType_TableCache, m_cache_size);
+                m_cache = AllocateTracked(AllocationType_TableCache, m_cache_size, false);
                 while (m_cache == nullptr) {
                     m_cache_size  >>= 1;
                     AMS_ABORT_UNLESS(m_cache_size  >= 16_KB);
-                    m_cache = AllocateTracked(AllocationType_TableCache, m_cache_size);
+                    m_cache = AllocateTracked(AllocationType_TableCache, m_cache_size, false);
                 }
                 m_cache_bitsize = util::CountTrailingZeros(m_cache_size);
             }

@@ -43,13 +43,20 @@ namespace ams::mitm::fs::romfs {
             ~ScopedHeapLock();
     };
 
-    void *AllocateTracked(AllocationType type, size_t size);
+    void *AllocateTrackedImpl(AllocationType type, size_t size);
+
+    template<typename T = void>
+    ALWAYS_INLINE T *AllocateTracked(AllocationType type, size_t size, bool abort_on_failure = true) {
+        void * const mem = AllocateTrackedImpl(type, size);
+        AMS_ABORT_UNLESS(!abort_on_failure || mem != nullptr);
+        return static_cast<T *>(mem);
+    }
+
     void FreeTracked(AllocationType type, void *p, size_t size);
 
     template<typename T, typename... Args>
     T *AllocateTyped(AllocationType type, Args &&... args) {
-        void *mem = AllocateTracked(type, sizeof(T));
-        return std::construct_at(static_cast<T *>(mem), std::forward<Args>(args)...);
+        return std::construct_at(AllocateTracked<T>(type, sizeof(T)), std::forward<Args>(args)...);
     }
 
     template<AllocationType AllocType, typename T>
@@ -65,7 +72,7 @@ namespace ams::mitm::fs::romfs {
             TrackedAllocator() = default;
 
             T *allocate(size_t n) {
-                return static_cast<T *>(AllocateTracked(AllocType, sizeof(T) * n));
+                return AllocateTracked<T>(AllocType, sizeof(T) * n);
             }
 
             void deallocate(T *p, size_t n) {

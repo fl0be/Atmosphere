@@ -300,7 +300,7 @@ namespace ams::mitm::fs {
             g_romfs_build_lock.Unlock();
         }
 
-        void *AllocateTracked(AllocationType type, size_t size) {
+        void *AllocateTrackedImpl(AllocationType type, size_t size) {
             if (g_building_from_dynamic_heap) {
                 void *ret = nullptr;
                 if (CanAllocateFromDynamicAppletHeap(type) && g_dynamic_let_heap.heap_address != 0) {

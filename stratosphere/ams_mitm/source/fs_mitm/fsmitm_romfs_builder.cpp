@@ -44,7 +44,7 @@ namespace ams::mitm::fs {
             m_layout.file_entry_size  = m_tree->m_file_table_size;
 
             /* Allocate metadata, make pointers. */
-            RomfsHeader *header = reinterpret_cast<RomfsHeader *>(AllocateTracked(AllocationType_Memory, sizeof(RomfsHeader)));
+            RomfsHeader *header = AllocateTracked<RomfsHeader>(AllocationType_Memory, sizeof(RomfsHeader));
             std::memset(header, 0x00, sizeof(*header));
 
             /* Open metadata file. */
@@ -248,7 +248,7 @@ namespace ams::mitm::fs {
                                 FreeTracked(AllocationType_FileName, cur_file->path, cur_file->path_len + 1);
                                 cur_file->path = nullptr;
 
-                                char *new_path = static_cast<char *>(AllocateTracked(AllocationType_FullPath, path_needed_size));
+                                char *new_path = AllocateTracked<char>(AllocationType_FullPath, path_needed_size);
                                 std::memcpy(new_path, full_path, path_needed_size);
                                 out_infos->emplace_back(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, new_path);
                             }
