@@ -132,92 +132,39 @@ namespace ams::mitm::fs::romfs {
         NON_COPYABLE(TableWriter);
         NON_MOVEABLE(TableWriter);
         private:
-            static constexpr size_t FallbackCacheSize = 1_KB;
-        private:
             ::FsFile *m_file;
             size_t m_offset;
             size_t m_size;
-            size_t m_cache_idx;
-            u8 m_fallback_cache[FallbackCacheSize];
-            size_t m_fallback_cache_entry_offset;
-            size_t m_fallback_cache_entry_size;
-            bool m_cache_dirty;
-            bool m_fallback_cache_dirty;
+            size_t m_written;
+            size_t m_held;
         private:
-            ALWAYS_INLINE void Read(size_t ofs, void *dst, size_t sz) {
-                u64 read_size;
-                R_ABORT_UNLESS(fsFileRead(m_file, m_offset + ofs, dst, sz, 0, std::addressof(read_size)));
-                AMS_ABORT_UNLESS(read_size == sz);
-            }
-
-            ALWAYS_INLINE void Write(size_t ofs, const void *src, size_t sz) {
-                R_ABORT_UNLESS(fsFileWrite(m_file, m_offset + ofs, src, sz, FsWriteOption_None));
-            }
-
             ALWAYS_INLINE void Flush() {
-                AMS_ABORT_UNLESS(!(m_cache_dirty && m_fallback_cache_dirty));
-
-                if (m_cache_dirty) {
-                    const size_t ofs = m_cache_idx * this->GetCacheSize();
-                    this->Write(ofs, m_cache, std::min(m_size - ofs, this->GetCacheSize()));
-                    m_cache_dirty = false;
-                }
-                if (m_fallback_cache_dirty) {
-                    this->Write(m_fallback_cache_entry_offset, m_fallback_cache, m_fallback_cache_entry_size);
-                    m_fallback_cache_dirty = false;
-                }
-            }
-
-            ALWAYS_INLINE size_t GetCacheIndex(u32 ofs) {
-                return ofs / this->GetCacheSize();
-            }
-
-            ALWAYS_INLINE void RefreshCacheImpl() {
-                const size_t cur_cache = m_cache_idx * this->GetCacheSize();
-                this->Read(cur_cache, m_cache, std::min(m_size - cur_cache, this->GetCacheSize()));
-            }
-
-            ALWAYS_INLINE void RefreshCache(u32 entry_offset) {
-                if (size_t idx = this->GetCacheIndex(entry_offset); idx != m_cache_idx || m_fallback_cache_dirty) {
-                    this->Flush();
-                    m_cache_idx = idx;
-                    this->RefreshCacheImpl();
+                if (m_held > 0) {
+                    R_ABORT_UNLESS(fsFileWrite(m_file, m_offset + m_written, m_cache, m_held, FsWriteOption_None));
+                    m_written += m_held;
+                    m_held     = 0;
                 }
             }
         public:
-            TableWriter(::FsFile *f, size_t ofs, size_t sz) : DynamicTableCache(sz), m_file(f), m_offset(ofs), m_size(sz), m_cache_idx(0), m_fallback_cache_entry_offset(), m_fallback_cache_entry_size(), m_cache_dirty(), m_fallback_cache_dirty() {
-                AMS_ABORT_UNLESS(m_cache != nullptr);
-
-                std::memset(m_cache, 0, this->GetCacheSize());
-                std::memset(m_fallback_cache, 0, sizeof(m_fallback_cache));
-                for (size_t cur = 0; cur < m_size; cur += this->GetCacheSize()) {
-                    this->Write(cur, m_cache, std::min(m_size - cur, this->GetCacheSize()));
-                }
-            }
+            TableWriter(::FsFile *f, size_t ofs, size_t sz) : DynamicTableCache(sz), m_file(f), m_offset(ofs), m_size(sz), m_written(0), m_held(0) { /* ... */ }
 
             ~TableWriter() {
                 this->Flush();
+
+                AMS_ABORT_UNLESS(m_written == m_size);
             }
 
-            Entry *GetEntry(u32 entry_offset, u32 name_len) {
-                this->RefreshCache(entry_offset);
+            Entry *AppendEntry(u32 name_len) {
+                const size_t entry_size = EntrySize<Entry>(name_len);
 
-                const size_t ofs = entry_offset % this->GetCacheSize();
+                AMS_ABORT_UNLESS(m_written + m_held + entry_size <= m_size);
 
-                Entry *entry = reinterpret_cast<Entry *>(reinterpret_cast<uintptr_t>(m_cache) + ofs);
-                if (ofs + sizeof(Entry) + util::AlignUp(name_len, sizeof(u32)) > this->GetCacheSize()) {
+                if (m_held + entry_size > this->GetCacheSize()) {
                     this->Flush();
-
-                    m_fallback_cache_entry_offset = entry_offset;
-                    m_fallback_cache_entry_size   = sizeof(Entry) + util::AlignUp(name_len, sizeof(u32));
-                    this->Read(m_fallback_cache_entry_offset, m_fallback_cache, m_fallback_cache_entry_size);
-
-                    entry = reinterpret_cast<Entry *>(m_fallback_cache);
-                    m_fallback_cache_dirty = true;
-                } else {
-                    m_cache_dirty = true;
                 }
 
+                Entry * const entry = reinterpret_cast<Entry *>(static_cast<u8 *>(m_cache) + m_held);
+                m_held += entry_size;
                 return entry;
             }
     };

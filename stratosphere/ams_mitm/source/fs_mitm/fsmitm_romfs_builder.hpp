@@ -17,6 +17,7 @@
 #pragma once
 #include <stratosphere.hpp>
 #include "fsmitm_romfs_tree.hpp"
+#include "fsmitm_romfs_metadata.hpp"
 
 namespace ams::mitm::fs::romfs {
 
@@ -27,8 +28,7 @@ namespace ams::mitm::fs::romfs {
             using SourceInfoVector = std::vector<SourceInfo, TrackedAllocator<AllocationType_SourceInfo, SourceInfo>>;
         private:
             MergedTree *m_tree;
-            size_t m_dir_hash_table_size;
-            size_t m_file_hash_table_size;
+            MetadataLayout m_layout;
             size_t m_file_partition_size;
         public:
             explicit Builder(MergedTree *tree);
