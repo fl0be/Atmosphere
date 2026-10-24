@@ -16,13 +16,13 @@
 
 #pragma once
 #include <stratosphere.hpp>
-#include "fsmitm_romfs_builder.hpp"
+#include "fsmitm_romfs_sources.hpp"
 
 namespace ams::mitm::fs {
 
     class LayeredRomfsStorageImpl {
         private:
-            romfs::Builder::SourceInfoVector m_source_infos;
+            romfs::SourceInfoVector m_source_infos;
             std::unique_ptr<ams::fs::IStorage> m_storage_romfs;
             std::unique_ptr<ams::fs::IStorage> m_file_romfs;
             os::Event m_initialize_event;

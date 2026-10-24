@@ -17,6 +17,8 @@
 #include "../amsmitm_initialization.hpp"
 #include "../amsmitm_fs_utils.hpp"
 #include "fsmitm_layered_romfs_storage.hpp"
+#include "fsmitm_romfs_tree.hpp"
+#include "fsmitm_romfs_builder.hpp"
 
 namespace ams::mitm::fs {
 

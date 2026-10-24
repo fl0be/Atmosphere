@@ -108,4 +108,6 @@ namespace ams::mitm::fs::romfs {
         return lhs.virtual_offset <= rhs;
     }
 
+    using SourceInfoVector = std::vector<SourceInfo, TrackedAllocator<AllocationType_SourceInfo, SourceInfo>>;
+
 }

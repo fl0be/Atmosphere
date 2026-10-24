@@ -24,8 +24,6 @@ namespace ams::mitm::fs::romfs {
     class Builder {
         NON_COPYABLE(Builder);
         NON_MOVEABLE(Builder);
-        public:
-            using SourceInfoVector = std::vector<SourceInfo, TrackedAllocator<AllocationType_SourceInfo, SourceInfo>>;
         private:
             MergedTree *m_tree;
             MetadataLayout m_layout;
