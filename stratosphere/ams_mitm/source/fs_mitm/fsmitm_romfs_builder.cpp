@@ -26,7 +26,7 @@ namespace ams::mitm::fs {
 
         Builder::Builder(MergedTree *tree) : m_tree(tree), m_layout{}, m_file_partition_size(0) { /* ... */ }
 
-        void Builder::Build(SourceInfoVector *out_infos) {
+        void Builder::Build(SourceInfoVector *out_infos, RomfsHeader *header, MetadataFile *metadata) {
             /* Clear output. */
             out_infos->clear();
 
@@ -43,13 +43,11 @@ namespace ams::mitm::fs {
             m_layout.file_bucket_size = sizeof(u32) * num_file_hash_table_entries;
             m_layout.file_entry_size  = m_tree->m_file_table_size;
 
-            /* Allocate metadata, make pointers. */
-            RomfsHeader *header = AllocateTracked<RomfsHeader>(AllocationType_Memory, sizeof(RomfsHeader));
             std::memset(header, 0x00, sizeof(*header));
 
             /* Open metadata file. */
-            MetadataFile metadata;
-            metadata.Create(m_tree->m_program_id, m_layout);
+            MetadataWriter writer(metadata);
+            writer.Create(m_layout);
 
             /* Ensure later hash tables will have correct defaults. */
             static_assert(EmptyEntry == 0xFFFFFFFF);
@@ -155,7 +153,7 @@ namespace ams::mitm::fs {
                         }
                     }
 
-                    metadata.AppendFileBuckets(hash_table, std::min(m_layout.file_bucket_size - ofs, hash_table_size));
+                    writer.AppendFileBuckets(hash_table, std::min(m_layout.file_bucket_size - ofs, hash_table_size));
                 }
 
                 /* Write the directory hash table. */
@@ -179,7 +177,7 @@ namespace ams::mitm::fs {
                         }
                     }
 
-                    metadata.AppendDirectoryBuckets(hash_table, std::min(m_layout.dir_bucket_size - ofs, hash_table_size));
+                    writer.AppendDirectoryBuckets(hash_table, std::min(m_layout.dir_bucket_size - ofs, hash_table_size));
                 }
             }
 
@@ -212,7 +210,7 @@ namespace ams::mitm::fs {
             {
                 for (auto it = m_tree->m_files.begin(); it != m_tree->m_files.end(); it = m_tree->m_files.erase(it)) {
                     BuildFileContext *cur_file = it->get();
-                    FileEntry *cur_entry = metadata.AppendFileEntry(cur_file->path_len);
+                    FileEntry *cur_entry = writer.AppendFileEntry(cur_file->path_len);
 
                     /* Set entry fields. */
                     cur_entry->parent  = cur_file->parent->entry_offset;
@@ -257,14 +255,14 @@ namespace ams::mitm::fs {
                     }
                 }
 
-                metadata.FinishFileTable();
+                writer.FinishFileTable();
             }
 
             /* Write the directory table. */
             {
                 for (auto it = m_tree->m_directories.begin(); it != m_tree->m_directories.end(); it = m_tree->m_directories.erase(it)) {
                     BuildDirectoryContext *cur_dir = it->get();
-                    DirectoryEntry *cur_entry = metadata.AppendDirectoryEntry(cur_dir->path_len);
+                    DirectoryEntry *cur_entry = writer.AppendDirectoryEntry(cur_dir->path_len);
 
                     /* Set entry fields. */
                     cur_entry->parent  = cur_dir->parent_offset;
@@ -277,7 +275,7 @@ namespace ams::mitm::fs {
                     SetEntryName(cur_entry, cur_dir->path, cur_dir->path_len);
                 }
 
-                metadata.FinishDirectoryTable();
+                writer.FinishDirectoryTable();
             }
 
             /* Delete maps. */
@@ -301,8 +299,8 @@ namespace ams::mitm::fs {
 
             /* Save metadata to the SD card, to save on memory space. */
             {
-                metadata.Flush();
-                out_infos->emplace_back(header->directory_bucket_offset, m_layout.TotalSize(), DataSourceType::Metadata, metadata.ReleaseAsRemoteFile());
+                writer.Finish();
+                out_infos->emplace_back(header->directory_bucket_offset, m_layout.TotalSize(), DataSourceType::Metadata, metadata);
             }
         }
 

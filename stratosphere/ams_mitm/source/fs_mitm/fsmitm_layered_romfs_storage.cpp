@@ -373,7 +373,7 @@ namespace ams::mitm::fs {
         }
     }
 
-    LayeredRomfsStorageImpl::LayeredRomfsStorageImpl(std::unique_ptr<IStorage> s_r, std::unique_ptr<IStorage> f_r, ncm::ProgramId pr_id) : m_storage_romfs(std::move(s_r)), m_file_romfs(std::move(f_r)), m_initialize_event(os::EventClearMode_ManualClear), m_program_id(std::move(pr_id)), m_is_initialized(false), m_started_initialize(false) {
+    LayeredRomfsStorageImpl::LayeredRomfsStorageImpl(std::unique_ptr<IStorage> s_r, std::unique_ptr<IStorage> f_r, ncm::ProgramId pr_id) : m_storage_romfs(std::move(s_r)), m_file_romfs(std::move(f_r)), m_program_id(std::move(pr_id)), m_header(), m_metadata(m_program_id), m_initialize_event(os::EventClearMode_ManualClear), m_is_initialized(false), m_started_initialize(false) {
         /* ... */
     }
 
@@ -404,7 +404,7 @@ namespace ams::mitm::fs {
         }
 
         romfs::Builder builder(std::addressof(tree));
-        builder.Build(std::addressof(m_source_infos));
+        builder.Build(std::addressof(m_source_infos), std::addressof(m_header), std::addressof(m_metadata));
 
         m_is_initialized = true;
         m_initialize_event.Signal();
@@ -464,11 +464,7 @@ namespace ams::mitm::fs {
                         std::memcpy(cur_dst, cur_source.memory_source_info.data + offset_within_source, cur_read_size);
                         break;
                     case romfs::DataSourceType::Metadata:
-                        {
-                            size_t out_read = 0;
-                            R_ABORT_UNLESS(cur_source.metadata_source_info.file->Read(std::addressof(out_read), offset_within_source, cur_dst, cur_read_size));
-                            AMS_ABORT_UNLESS(out_read == cur_read_size);
-                        }
+                        cur_source.metadata_source_info.file->Read(offset_within_source, cur_dst, cur_read_size);
                         break;
                     AMS_UNREACHABLE_DEFAULT_CASE();
                 }

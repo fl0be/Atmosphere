@@ -20,6 +20,8 @@
 
 namespace ams::mitm::fs::romfs {
 
+    class MetadataFile;
+
     enum class DataSourceType : u8 {
         Storage,
         File,
@@ -42,7 +44,7 @@ namespace ams::mitm::fs::romfs {
                 char *path;
             } loose_source_info;
             struct {
-                ams::fs::fsa::IFile *file;
+                MetadataFile *file;
             } metadata_source_info;
             struct {
                 u8 *data;
@@ -69,7 +71,7 @@ namespace ams::mitm::fs::romfs {
                     this->loose_source_info.path = static_cast<char *>(arg);
                     break;
                 case DataSourceType::Metadata:
-                    this->metadata_source_info.file = static_cast<ams::fs::fsa::IFile *>(arg);
+                    this->metadata_source_info.file = static_cast<MetadataFile *>(arg);
                     break;
                 case DataSourceType::Memory:
                     this->memory_source_info.data = static_cast<u8 *>(arg);
@@ -85,15 +87,11 @@ namespace ams::mitm::fs::romfs {
             switch (this->source_type) {
                 case DataSourceType::Storage:
                 case DataSourceType::File:
-                    break;
                 case DataSourceType::Metadata:
-                    delete this->metadata_source_info.file;
+                case DataSourceType::Memory:
                     break;
                 case DataSourceType::LooseSdFile:
                     FreeTracked(AllocationType_FullPath, this->loose_source_info.path, std::strlen(this->loose_source_info.path) + 1);
-                    break;
-                case DataSourceType::Memory:
-                    FreeTracked(AllocationType_Memory, this->memory_source_info.data, this->size);
                     break;
                 AMS_UNREACHABLE_DEFAULT_CASE();
             }

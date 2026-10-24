@@ -17,6 +17,7 @@
 #pragma once
 #include <stratosphere.hpp>
 #include "fsmitm_romfs_sources.hpp"
+#include "fsmitm_romfs_metadata.hpp"
 
 namespace ams::mitm::fs {
 
@@ -25,8 +26,10 @@ namespace ams::mitm::fs {
             romfs::SourceInfoVector m_source_infos;
             std::unique_ptr<ams::fs::IStorage> m_storage_romfs;
             std::unique_ptr<ams::fs::IStorage> m_file_romfs;
-            os::Event m_initialize_event;
             ncm::ProgramId m_program_id;
+            romfs::RomfsHeader m_header;
+            romfs::MetadataFile m_metadata;
+            os::Event m_initialize_event;
             bool m_is_initialized;
             bool m_started_initialize;
         protected:
