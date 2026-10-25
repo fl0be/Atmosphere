@@ -139,7 +139,7 @@ namespace ams::mitm::fs {
 
         }
 
-        void MergedTree::VisitDirectory(BuildDirectoryContext *parent, u32 parent_offset, DirectoryTableReader &dir_table, FileTableReader &file_table) {
+        void MergedTree::VisitDirectory(BuildDirectoryContext *parent, u32 parent_offset, const RomfsHeader &header, DirectoryTableReader &dir_table, FileTableReader &file_table) {
             const DirectoryEntry *parent_entry = dir_table.GetEntry(parent_offset);
             if (AMS_UNLIKELY(parent_entry == nullptr)) {
                 return;
@@ -152,7 +152,7 @@ namespace ams::mitm::fs {
                     return;
                 }
 
-                this->AddFile(parent, std::unique_ptr<BuildFileContext>(AllocateTyped<BuildFileContext>(AllocationType_BuildFileContext, cur_file->name, cur_file->name_size, cur_file->size, cur_file->offset, m_cur_source_type)));
+                this->AddFile(parent, std::unique_ptr<BuildFileContext>(AllocateTyped<BuildFileContext>(AllocationType_BuildFileContext, cur_file->name, cur_file->name_size, cur_file->size, GetFileDataOffset(header, *cur_file), m_cur_source_type)));
 
                 cur_file_offset = cur_file->sibling;
             }
@@ -174,7 +174,7 @@ namespace ams::mitm::fs {
                     __asm__ __volatile__("" ::: "memory");
                 }
 
-                this->VisitDirectory(real_child, cur_child_offset, dir_table, file_table);
+                this->VisitDirectory(real_child, cur_child_offset, header, dir_table, file_table);
 
                 cur_child_offset = next_child_offset;
             }
@@ -202,14 +202,17 @@ namespace ams::mitm::fs {
         void MergedTree::AddStorageFiles(ams::fs::IStorage *storage, DataSourceType source_type) {
             RomfsHeader header;
             R_ABORT_UNLESS(storage->Read(0, std::addressof(header), sizeof(RomfsHeader)));
-            AMS_ABORT_UNLESS(header.size == sizeof(RomfsHeader));
+
+            s64 size = 0;
+            R_ABORT_UNLESS(storage->GetSize(std::addressof(size)));
+            AMS_ABORT_UNLESS(IsValidRomfsHeader(header, size));
 
             /* Read tables. */
             DirectoryTableReader dir_table(storage, header.directory_entry_offset, header.directory_entry_size);
             FileTableReader file_table(storage, header.file_entry_offset, header.file_entry_size);
 
             m_cur_source_type = source_type;
-            this->VisitDirectory(m_root, 0x0, dir_table, file_table);
+            this->VisitDirectory(m_root, 0x0, header, dir_table, file_table);
         }
 
     }

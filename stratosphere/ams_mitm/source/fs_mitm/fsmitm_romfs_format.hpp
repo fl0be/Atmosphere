@@ -20,6 +20,16 @@ namespace ams::mitm::fs::romfs {
 
     using RomfsHeader = ::ams::fs::RomFileSystemInformation;
 
+    ALWAYS_INLINE bool IsValidRomfsHeader(const RomfsHeader &header, s64 file_size) {
+        using ams::fs::IStorage;
+        return header.size == sizeof(RomfsHeader) &&
+            R_SUCCEEDED(IStorage::CheckAccessRange(header.directory_bucket_offset, header.directory_bucket_size, file_size)) &&
+            R_SUCCEEDED(IStorage::CheckAccessRange(header.directory_entry_offset,  header.directory_entry_size,  file_size)) &&
+            R_SUCCEEDED(IStorage::CheckAccessRange(header.file_bucket_offset,      header.file_bucket_size,      file_size)) &&
+            R_SUCCEEDED(IStorage::CheckAccessRange(header.file_entry_offset,       header.file_entry_size,       file_size)) &&
+            R_SUCCEEDED(IStorage::CheckAccessRange(header.body_offset,             static_cast<s64>(0),          file_size));
+    }
+
     constexpr inline size_t FilePartitionOffset = 0x200;
     constexpr inline size_t FileContentAlignment = 0x10;
 
@@ -56,6 +66,10 @@ namespace ams::mitm::fs::romfs {
     };
     static_assert(util::is_pod<FileEntry>::value && sizeof(FileEntry) == 0x20);
 
+    constexpr ALWAYS_INLINE s64 GetFileDataOffset(const RomfsHeader &header, const FileEntry &entry) {
+        return header.body_offset + entry.offset;
+    }
+
     template<typename Entry>
     constexpr ALWAYS_INLINE size_t EntrySize(size_t name_len) {
         return sizeof(Entry) + util::AlignUp(name_len, sizeof(u32));
@@ -85,25 +99,8 @@ namespace ams::mitm::fs::romfs {
         return static_cast<u32>(CalculatePathHash(parent, name, 0, name_len) % num_buckets);
     }
 
-    constexpr inline size_t GetHashTableSize(size_t num_entries) {
-        if (num_entries < 3) {
-            return 3;
-        } else if (num_entries < 19) {
-            return num_entries | 1;
-        } else {
-            size_t count = num_entries;
-            while ((count %  2 == 0) ||
-                   (count %  3 == 0) ||
-                   (count %  5 == 0) ||
-                   (count %  7 == 0) ||
-                   (count % 11 == 0) ||
-                   (count % 13 == 0) ||
-                   (count % 17 == 0))
-            {
-                count++;
-            }
-            return count;
-        }
+    constexpr ALWAYS_INLINE size_t GetBucketTableSize(size_t num_buckets) {
+        return sizeof(u32) * num_buckets;
     }
 
 }

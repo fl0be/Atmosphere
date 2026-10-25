@@ -24,6 +24,31 @@ namespace ams::mitm::fs {
 
     namespace romfs {
 
+        namespace {
+
+            constexpr inline size_t ChooseBucketCount(size_t num_entries) {
+                if (num_entries < 3) {
+                    return 3;
+                } else if (num_entries < 19) {
+                    return num_entries | 1;
+                } else {
+                    size_t count = num_entries;
+                    while ((count %  2 == 0) ||
+                           (count %  3 == 0) ||
+                           (count %  5 == 0) ||
+                           (count %  7 == 0) ||
+                           (count % 11 == 0) ||
+                           (count % 13 == 0) ||
+                           (count % 17 == 0))
+                    {
+                        count++;
+                    }
+                    return count;
+                }
+            }
+
+        }
+
         Builder::Builder(MergedTree *tree) : m_tree(tree), m_layout{}, m_file_partition_size(0) { /* ... */ }
 
         void Builder::Build(SourceInfoVector *out_infos, RomfsHeader *header, MetadataFile *metadata) {
@@ -36,11 +61,11 @@ namespace ams::mitm::fs {
             ON_SCOPE_EXIT { fsFsClose(std::addressof(sd_filesystem)); };
 
             /* Calculate hash table sizes. */
-            const size_t num_dir_hash_table_entries  = GetHashTableSize(m_tree->m_num_dirs);
-            const size_t num_file_hash_table_entries = GetHashTableSize(m_tree->m_num_files);
-            m_layout.dir_bucket_size  = sizeof(u32) * num_dir_hash_table_entries;
+            const size_t num_dir_hash_table_entries  = ChooseBucketCount(m_tree->m_num_dirs);
+            const size_t num_file_hash_table_entries = ChooseBucketCount(m_tree->m_num_files);
+            m_layout.dir_bucket_size  = GetBucketTableSize(num_dir_hash_table_entries);
             m_layout.dir_entry_size   = m_tree->m_dir_table_size;
-            m_layout.file_bucket_size = sizeof(u32) * num_file_hash_table_entries;
+            m_layout.file_bucket_size = GetBucketTableSize(num_file_hash_table_entries);
             m_layout.file_entry_size  = m_tree->m_file_table_size;
 
             std::memset(header, 0x00, sizeof(*header));
@@ -232,7 +257,7 @@ namespace ams::mitm::fs {
                                 if (back.source_type == cur_file->source_type) {
                                     back.size = cur_file->offset + FilePartitionOffset + cur_file->size - back.virtual_offset;
                                 } else {
-                                    out_infos->emplace_back(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, cur_file->orig_offset + FilePartitionOffset);
+                                    out_infos->emplace_back(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, cur_file->orig_offset);
                                 }
                             }
                             break;
