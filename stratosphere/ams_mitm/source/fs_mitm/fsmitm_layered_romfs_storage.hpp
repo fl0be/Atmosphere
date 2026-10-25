@@ -16,35 +16,23 @@
 
 #pragma once
 #include <stratosphere.hpp>
-#include "fsmitm_romfs_sources.hpp"
-#include "fsmitm_romfs_metadata.hpp"
+#include "fsmitm_romfs_image.hpp"
 
 namespace ams::mitm::fs {
 
     class LayeredRomfsStorageImpl {
         private:
-            romfs::SourceInfoVector m_source_infos;
-            std::unique_ptr<ams::fs::IStorage> m_storage_romfs;
-            std::unique_ptr<ams::fs::IStorage> m_file_romfs;
-            ncm::ProgramId m_program_id;
-            romfs::RomfsHeader m_header;
-            romfs::MetadataFile m_metadata;
+            romfs::Image m_romfs;
             os::Event m_initialize_event;
             bool m_is_initialized;
             bool m_started_initialize;
-        protected:
-            inline s64 GetSize() const {
-                const auto &back = m_source_infos.back();
-                return back.virtual_offset + back.size;
-            }
         public:
             LayeredRomfsStorageImpl(std::unique_ptr<ams::fs::IStorage> s_r, std::unique_ptr<ams::fs::IStorage> f_r, ncm::ProgramId pr_id);
-            ~LayeredRomfsStorageImpl();
 
             void BeginInitialize();
             void InitializeImpl();
 
-            constexpr ncm::ProgramId GetProgramId() const { return m_program_id; }
+            constexpr ncm::ProgramId GetProgramId() const { return m_romfs.GetProgramId(); }
 
             Result Read(s64 offset, void *buffer, size_t size);
             Result Flush();
