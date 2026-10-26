@@ -139,7 +139,7 @@ namespace ams::mitm::fs {
 
         }
 
-        void MergedTree::VisitDirectory(BuildDirectoryContext *parent, u32 parent_offset, const RomfsHeader &header, DirectoryTableReader &dir_table, FileTableReader &file_table) {
+        void MergedTree::VisitDirectory(BuildDirectoryContext *parent, u32 parent_offset, const Header &header, DirectoryTableReader &dir_table, FileTableReader &file_table) {
             const DirectoryEntry *parent_entry = dir_table.GetEntry(parent_offset);
             if (AMS_UNLIKELY(parent_entry == nullptr)) {
                 return;
@@ -200,12 +200,12 @@ namespace ams::mitm::fs {
         }
 
         void MergedTree::AddStorageFiles(ams::fs::IStorage *storage, DataSourceType source_type) {
-            RomfsHeader header;
-            R_ABORT_UNLESS(storage->Read(0, std::addressof(header), sizeof(RomfsHeader)));
+            Header header;
+            R_ABORT_UNLESS(storage->Read(0, std::addressof(header), sizeof(Header)));
 
             s64 size = 0;
             R_ABORT_UNLESS(storage->GetSize(std::addressof(size)));
-            AMS_ABORT_UNLESS(IsValidRomfsHeader(header, size));
+            AMS_ABORT_UNLESS(IsValidHeader(header, size));
 
             /* Read tables. */
             DirectoryTableReader dir_table(storage, header.directory_entry_offset, header.directory_entry_size);

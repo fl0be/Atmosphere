@@ -51,7 +51,7 @@ namespace ams::mitm::fs {
 
         Builder::Builder(MergedTree *tree) : m_tree(tree), m_layout{}, m_file_partition_size(0) { /* ... */ }
 
-        void Builder::Build(SourceInfoVector *out_infos, RomfsHeader *header, MetadataFile *metadata) {
+        void Builder::Build(SourceInfoVector *out_infos, Header *header, MetadataFile *metadata) {
             /* Clear output. */
             out_infos->clear();
 

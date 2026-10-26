@@ -31,7 +31,7 @@ namespace ams::mitm::fs::romfs {
         public:
             explicit Builder(MergedTree *tree);
 
-            void Build(SourceInfoVector *out_infos, RomfsHeader *header, MetadataFile *metadata);
+            void Build(SourceInfoVector *out_infos, Header *header, MetadataFile *metadata);
     };
 
 }
