@@ -15,7 +15,7 @@
  */
 #include <stratosphere.hpp>
 #include "../amsmitm_fs_utils.hpp"
-#include "fsmitm_romfs_image.hpp"
+#include "fsmitm_romfs.hpp"
 #include "fsmitm_romfs_tree.hpp"
 #include "fsmitm_romfs_builder.hpp"
 
@@ -25,17 +25,17 @@ namespace ams::mitm::fs {
 
     namespace romfs {
 
-        Image::Image(std::unique_ptr<IStorage> s_r, std::unique_ptr<IStorage> f_r, ncm::ProgramId pr_id) : m_storage_romfs(std::move(s_r)), m_file_romfs(std::move(f_r)), m_program_id(std::move(pr_id)), m_header(), m_metadata(m_program_id) {
+        Romfs::Romfs(std::unique_ptr<IStorage> s_r, std::unique_ptr<IStorage> f_r, ncm::ProgramId pr_id) : m_storage_romfs(std::move(s_r)), m_file_romfs(std::move(f_r)), m_program_id(std::move(pr_id)), m_header(), m_metadata(m_program_id) {
             /* ... */
         }
 
-        Image::~Image() {
+        Romfs::~Romfs() {
             for (size_t i = 0; i < m_source_infos.size(); i++) {
                 m_source_infos[i].Cleanup();
             }
         }
 
-        void Image::Initialize(bool walk_sd) {
+        void Romfs::Initialize(bool walk_sd) {
             /* Build new virtual romfs. */
             MergedTree tree(m_program_id);
 
@@ -53,7 +53,7 @@ namespace ams::mitm::fs {
             builder.Build(std::addressof(m_source_infos), std::addressof(m_header), std::addressof(m_metadata));
         }
 
-        Result Image::Read(s64 offset, void *buffer, size_t size) const {
+        Result Romfs::Read(s64 offset, void *buffer, size_t size) const {
             /* Validate offset/size. */
             const s64 virt_size = this->GetSize();
             R_UNLESS(offset >= 0,        fs::ResultInvalidOffset());

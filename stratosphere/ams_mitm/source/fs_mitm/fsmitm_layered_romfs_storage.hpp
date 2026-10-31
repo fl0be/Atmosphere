@@ -16,13 +16,13 @@
 
 #pragma once
 #include <stratosphere.hpp>
-#include "fsmitm_romfs_image.hpp"
+#include "fsmitm_romfs.hpp"
 
 namespace ams::mitm::fs {
 
     class LayeredRomfsStorageImpl {
         private:
-            romfs::Image m_romfs;
+            romfs::Romfs m_romfs;
             os::Event m_initialize_event;
             bool m_is_initialized;
             bool m_started_initialize;

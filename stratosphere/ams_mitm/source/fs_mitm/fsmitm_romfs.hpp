@@ -20,9 +20,9 @@
 
 namespace ams::mitm::fs::romfs {
 
-    class Image {
-        NON_COPYABLE(Image);
-        NON_MOVEABLE(Image);
+    class Romfs {
+        NON_COPYABLE(Romfs);
+        NON_MOVEABLE(Romfs);
         private:
             std::unique_ptr<ams::fs::IStorage> m_storage_romfs;
             std::unique_ptr<ams::fs::IStorage> m_file_romfs;
@@ -31,8 +31,8 @@ namespace ams::mitm::fs::romfs {
             MetadataFile m_metadata;
             SourceInfoVector m_source_infos;
         public:
-            Image(std::unique_ptr<ams::fs::IStorage> s_r, std::unique_ptr<ams::fs::IStorage> f_r, ncm::ProgramId pr_id);
-            ~Image();
+            Romfs(std::unique_ptr<ams::fs::IStorage> s_r, std::unique_ptr<ams::fs::IStorage> f_r, ncm::ProgramId pr_id);
+            ~Romfs();
 
             void Initialize(bool walk_sd);
 
