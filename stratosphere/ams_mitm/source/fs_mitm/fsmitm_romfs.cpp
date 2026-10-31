@@ -49,8 +49,7 @@ namespace ams::mitm::fs {
                 tree.AddStorageFiles(m_storage_romfs.get(), DataSourceType::Storage);
             }
 
-            Builder builder(std::addressof(tree));
-            builder.Build(std::addressof(m_source_infos), std::addressof(m_header), std::addressof(m_metadata));
+            Build(std::addressof(tree), std::addressof(m_source_infos), std::addressof(m_header), std::addressof(m_metadata));
         }
 
         Result Romfs::Read(s64 offset, void *buffer, size_t size) const {

@@ -16,22 +16,14 @@
 
 #pragma once
 #include <stratosphere.hpp>
-#include "fsmitm_romfs_tree.hpp"
-#include "fsmitm_romfs_metadata.hpp"
+#include "fsmitm_romfs_format.hpp"
+#include "fsmitm_romfs_sources.hpp"
 
 namespace ams::mitm::fs::romfs {
 
-    class Builder {
-        NON_COPYABLE(Builder);
-        NON_MOVEABLE(Builder);
-        private:
-            MergedTree *m_tree;
-            MetadataLayout m_layout;
-            size_t m_file_partition_size;
-        public:
-            explicit Builder(MergedTree *tree);
+    class MergedTree;
+    class MetadataFile;
 
-            void Build(SourceInfoVector *out_infos, Header *header, MetadataFile *metadata);
-    };
+    void Build(MergedTree *tree, SourceInfoVector *out_infos, Header *header, MetadataFile *metadata);
 
 }

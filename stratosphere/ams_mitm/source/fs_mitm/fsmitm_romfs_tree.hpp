@@ -16,6 +16,7 @@
 
 #pragma once
 #include <stratosphere.hpp>
+#include <ranges>
 #include "fsmitm_romfs_sources.hpp"
 #include "fsmitm_romfs_format.hpp"
 
@@ -187,7 +188,6 @@ namespace ams::mitm::fs::romfs {
     class MergedTree {
         NON_COPYABLE(MergedTree);
         NON_MOVEABLE(MergedTree);
-        friend class Builder;
         private:
             template<typename T>
             struct Comparator {
@@ -212,6 +212,11 @@ namespace ams::mitm::fs::romfs {
 
             template<AllocationType AllocType, typename T>
             using ContextSet = std::set<std::unique_ptr<T>, Comparator<T>, TrackedAllocator<AllocType, std::unique_ptr<T>>>;
+
+            template<typename Context, typename Set>
+            static constexpr auto MakeView(Set &set) {
+                return set | std::views::transform([](const auto &ctx) -> Context * { return ctx.get(); });
+            }
         private:
             util::TypedStorage<ScopedHeapLock> m_heap_lock;
             ncm::ProgramId m_program_id;
@@ -237,6 +242,32 @@ namespace ams::mitm::fs::romfs {
 
             void AddSdFiles();
             void AddStorageFiles(ams::fs::IStorage *storage, DataSourceType source_type);
+
+            BuildDirectoryContext *GetRoot() const { return m_root; }
+
+            size_t GetDirectoryCount() const { return m_num_dirs; }
+            size_t GetFileCount() const { return m_num_files; }
+            size_t GetDirectoryTableSize() const { return m_dir_table_size; }
+            size_t GetFileTableSize() const { return m_file_table_size; }
+
+            auto GetDirectories() { return MakeView<BuildDirectoryContext>(m_directories); }
+            auto GetFiles() { return MakeView<BuildFileContext>(m_files); }
+
+            BuildDirectoryContext *GetFrontDirectory() { return m_directories.empty() ? nullptr : m_directories.begin()->get(); }
+            BuildFileContext *GetFrontFile() { return m_files.empty() ? nullptr : m_files.begin()->get(); }
+
+            void RemoveFrontDirectory() {
+                AMS_ABORT_UNLESS(!m_directories.empty());
+                if (m_directories.begin()->get() == m_root) {
+                    m_root = nullptr;
+                }
+                m_directories.erase(m_directories.begin());
+            }
+
+            void RemoveFrontFile() {
+                AMS_ABORT_UNLESS(!m_files.empty());
+                m_files.erase(m_files.begin());
+            }
     };
 
 }
