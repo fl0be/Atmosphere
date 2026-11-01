@@ -37,7 +37,7 @@ namespace ams::mitm::fs {
 
         void Romfs::Initialize(bool walk_sd) {
             /* Build new virtual romfs. */
-            MergedTree tree(m_program_id);
+            LayeredTree tree(m_program_id);
 
             if (walk_sd) {
                 AddSdFiles(std::addressof(tree), m_program_id);

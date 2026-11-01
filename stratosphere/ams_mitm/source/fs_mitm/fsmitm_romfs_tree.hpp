@@ -24,11 +24,26 @@ namespace ams::mitm::fs::romfs {
 
     struct BuildFileContext;
 
+    template<typename Context>
+    constexpr ALWAYS_INLINE size_t ContextAllocationSize(size_t name_len) {
+        return sizeof(Context) + name_len + 1;
+    }
+
+    template<typename Context, typename... Args>
+    Context *CreateContext(const char *name, size_t name_len, Args... args) {
+        auto * const ctx = std::construct_at(AllocateTracked<Context>(Context::Allocation, ContextAllocationSize<Context>(name_len)), args...);
+        ctx->name_len = name_len;
+        std::memcpy(ctx->name, name, name_len);
+        ctx->name[name_len] = '\x00';
+        return ctx;
+    }
+
     struct BuildDirectoryContext {
         NON_COPYABLE(BuildDirectoryContext);
         NON_MOVEABLE(BuildDirectoryContext);
 
-        char *path;
+        static constexpr AllocationType Allocation = AllocationType_BuildDirContext;
+
         union {
             BuildDirectoryContext *parent;
         };
@@ -47,33 +62,17 @@ namespace ams::mitm::fs::romfs {
             BuildFileContext *file;
             u32 file_offset;
         };
-        u32 path_len;
+        u32 name_len;
         u32 entry_offset;
         u32 hash_value;
+        char name[];
 
-        struct RootTag{};
+        BuildDirectoryContext() : parent(nullptr), child(nullptr), sibling(nullptr), file(nullptr), entry_offset(0), hash_value(EmptyEntry) { /* ... */ }
 
-        BuildDirectoryContext(RootTag) : parent(nullptr), child(nullptr), sibling(nullptr), file(nullptr), path_len(0), entry_offset(0), hash_value(EmptyEntry) {
-            this->path = AllocateTracked<char>(AllocationType_DirName, 1);
-            this->path[0] = '\x00';
-        }
-
-        BuildDirectoryContext(const char *entry_name, size_t entry_name_len) : parent(nullptr), child(nullptr), sibling(nullptr), file(nullptr), entry_offset(0) {
-            this->path_len = entry_name_len;
-            this->path = AllocateTracked<char>(AllocationType_DirName, this->path_len + 1);
-            std::memcpy(this->path, entry_name, entry_name_len);
-            this->path[this->path_len] = '\x00';
-        }
-
-        ~BuildDirectoryContext() {
-            if (this->path != nullptr) {
-                FreeTracked(AllocationType_DirName, this->path, this->path_len + 1);
-                this->path = nullptr;
-            }
-        }
-
-        void operator delete(void *p) {
-            FreeTracked(AllocationType_BuildDirContext, p, sizeof(BuildDirectoryContext));
+        void operator delete(BuildDirectoryContext *ctx, std::destroying_delete_t) {
+            const size_t size = ContextAllocationSize<BuildDirectoryContext>(ctx->name_len);
+            ctx->~BuildDirectoryContext();
+            FreeTracked(Allocation, ctx, size);
         }
 
         size_t GetPathLength() const {
@@ -81,7 +80,7 @@ namespace ams::mitm::fs::romfs {
                 return 0;
             }
 
-            return GetChildPathLength(this->parent->GetPathLength(), this->path_len);
+            return GetChildPathLength(this->parent->GetPathLength(), this->name_len);
         }
 
         size_t GetPath(char *dst) const {
@@ -91,9 +90,9 @@ namespace ams::mitm::fs::romfs {
             }
 
             const size_t parent_len = this->parent->GetPath(dst);
-            const size_t len = GetChildPathLength(parent_len, this->path_len);
+            const size_t len = GetChildPathLength(parent_len, this->name_len);
             dst[parent_len] = '/';
-            std::memcpy(dst + parent_len + 1, this->path, this->path_len);
+            std::memcpy(dst + parent_len + 1, this->name, this->name_len);
             dst[len] = '\x00';
             return len;
         }
@@ -115,7 +114,8 @@ namespace ams::mitm::fs::romfs {
         NON_COPYABLE(BuildFileContext);
         NON_MOVEABLE(BuildFileContext);
 
-        char *path;
+        static constexpr AllocationType Allocation = AllocationType_BuildFileContext;
+
         BuildDirectoryContext *parent;
         union {
             BuildFileContext *sibling;
@@ -124,27 +124,18 @@ namespace ams::mitm::fs::romfs {
         s64 offset;
         s64 size;
         s64 orig_offset;
-        u32 path_len;
+        u32 name_len;
         u32 entry_offset;
         u32 hash_value;
         DataSourceType source_type;
+        char name[];
 
-        BuildFileContext(const char *entry_name, size_t entry_name_len, s64 sz, s64 o_o, DataSourceType type) : parent(nullptr), sibling(nullptr), offset(0), size(sz), orig_offset(o_o), entry_offset(0), hash_value(EmptyEntry), source_type(type) {
-            this->path_len = entry_name_len;
-            this->path = AllocateTracked<char>(AllocationType_FileName, this->path_len + 1);
-            std::memcpy(this->path, entry_name, entry_name_len);
-            this->path[this->path_len] = 0;
-        }
+        BuildFileContext(s64 sz, s64 o_o, DataSourceType type) : parent(nullptr), sibling(nullptr), offset(0), size(sz), orig_offset(o_o), entry_offset(0), hash_value(EmptyEntry), source_type(type) { /* ... */ }
 
-        ~BuildFileContext() {
-            if (this->path != nullptr) {
-                FreeTracked(AllocationType_FileName, this->path, this->path_len + 1);
-                this->path = nullptr;
-            }
-        }
-
-        void operator delete(void *p) {
-            FreeTracked(AllocationType_BuildFileContext, p, sizeof(BuildFileContext));
+        void operator delete(BuildFileContext *ctx, std::destroying_delete_t) {
+            const size_t size = ContextAllocationSize<BuildFileContext>(ctx->name_len);
+            ctx->~BuildFileContext();
+            FreeTracked(Allocation, ctx, size);
         }
 
         size_t GetPathLength() const {
@@ -152,7 +143,7 @@ namespace ams::mitm::fs::romfs {
                 return 0;
             }
 
-            return GetChildPathLength(this->parent->GetPathLength(), this->path_len);
+            return GetChildPathLength(this->parent->GetPathLength(), this->name_len);
         }
 
         size_t GetPath(char *dst) const {
@@ -162,9 +153,9 @@ namespace ams::mitm::fs::romfs {
             }
 
             const size_t parent_len = this->parent->GetPath(dst);
-            const size_t len = GetChildPathLength(parent_len, this->path_len);
+            const size_t len = GetChildPathLength(parent_len, this->name_len);
             dst[parent_len] = '/';
-            std::memcpy(dst + parent_len + 1, this->path, this->path_len);
+            std::memcpy(dst + parent_len + 1, this->name, this->name_len);
             dst[len] = '\x00';
             return len;
         }
@@ -182,9 +173,9 @@ namespace ams::mitm::fs::romfs {
         }
     };
 
-    class MergedTree {
-        NON_COPYABLE(MergedTree);
-        NON_MOVEABLE(MergedTree);
+    class LayeredTree {
+        NON_COPYABLE(LayeredTree);
+        NON_MOVEABLE(LayeredTree);
         private:
             template<typename T>
             struct Comparator {
@@ -224,8 +215,8 @@ namespace ams::mitm::fs::romfs {
             size_t m_dir_table_size;
             size_t m_file_table_size;
         public:
-            explicit MergedTree(ncm::ProgramId program_id);
-            ~MergedTree();
+            explicit LayeredTree(ncm::ProgramId program_id);
+            ~LayeredTree();
 
             void AddDirectory(BuildDirectoryContext **out, BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildDirectoryContext> file_ctx);
             void AddFile(BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildFileContext> file_ctx);

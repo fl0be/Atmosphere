@@ -23,21 +23,21 @@ namespace ams::mitm::fs {
 
     namespace romfs {
 
-        MergedTree::MergedTree(ncm::ProgramId program_id) : m_num_dirs(0), m_num_files(0), m_dir_table_size(0), m_file_table_size(0) {
+        LayeredTree::LayeredTree(ncm::ProgramId program_id) : m_num_dirs(0), m_num_files(0), m_dir_table_size(0), m_file_table_size(0) {
             util::ConstructAt(m_heap_lock, program_id);
 
-            auto res = m_directories.emplace(std::unique_ptr<BuildDirectoryContext>(AllocateTyped<BuildDirectoryContext>(AllocationType_BuildDirContext, BuildDirectoryContext::RootTag{})));
+            auto res = m_directories.emplace(std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>("", 0)));
             AMS_ABORT_UNLESS(res.second);
             m_root = res.first->get();
             m_num_dirs = 1;
             m_dir_table_size = EntrySize<DirectoryEntry>(0);
         }
 
-        MergedTree::~MergedTree() {
+        LayeredTree::~LayeredTree() {
             util::DestroyAt(m_heap_lock);
         }
 
-        void MergedTree::AddDirectory(BuildDirectoryContext **out, BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildDirectoryContext> child_ctx) {
+        void LayeredTree::AddDirectory(BuildDirectoryContext **out, BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildDirectoryContext> child_ctx) {
             /* Set parent context member. */
             child_ctx->parent = parent_ctx;
 
@@ -50,13 +50,13 @@ namespace ams::mitm::fs {
 
             /* Add a new directory. */
             m_num_dirs++;
-            m_dir_table_size += EntrySize<DirectoryEntry>(child_ctx->path_len);
+            m_dir_table_size += EntrySize<DirectoryEntry>(child_ctx->name_len);
 
             *out = child_ctx.get();
             m_directories.emplace(std::move(child_ctx));
         }
 
-        void MergedTree::AddFile(BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildFileContext> file_ctx) {
+        void LayeredTree::AddFile(BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildFileContext> file_ctx) {
             /* Set parent context member. */
             file_ctx->parent = parent_ctx;
 
@@ -67,7 +67,7 @@ namespace ams::mitm::fs {
 
             /* Add a new file. */
             m_num_files++;
-            m_file_table_size += EntrySize<FileEntry>(file_ctx->path_len);
+            m_file_table_size += EntrySize<FileEntry>(file_ctx->name_len);
             m_files.emplace(std::move(file_ctx));
         }
 

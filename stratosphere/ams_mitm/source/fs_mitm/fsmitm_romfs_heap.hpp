@@ -20,8 +20,6 @@
 namespace ams::mitm::fs::romfs {
 
     enum AllocationType {
-        AllocationType_FileName,
-        AllocationType_DirName,
         AllocationType_FullPath,
         AllocationType_SourceInfo,
         AllocationType_BuildFileContext,
@@ -53,11 +51,6 @@ namespace ams::mitm::fs::romfs {
     }
 
     void FreeTracked(AllocationType type, void *p, size_t size);
-
-    template<typename T, typename... Args>
-    T *AllocateTyped(AllocationType type, Args &&... args) {
-        return std::construct_at(AllocateTracked<T>(type, sizeof(T)), std::forward<Args>(args)...);
-    }
 
     template<AllocationType AllocType, typename T>
     class TrackedAllocator {

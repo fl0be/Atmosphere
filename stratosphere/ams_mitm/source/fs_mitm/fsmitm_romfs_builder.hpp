@@ -21,12 +21,12 @@
 
 namespace ams::mitm::fs::romfs {
 
-    class MergedTree;
+    class LayeredTree;
     class MetadataFile;
 
-    void AddSdFiles(MergedTree *tree, ncm::ProgramId program_id);
-    void AddStorageFiles(MergedTree *tree, ams::fs::IStorage *storage, DataSourceType source_type);
+    void AddSdFiles(LayeredTree *tree, ncm::ProgramId program_id);
+    void AddStorageFiles(LayeredTree *tree, ams::fs::IStorage *storage, DataSourceType source_type);
 
-    void Build(MergedTree *tree, SourceInfoVector *out_infos, Header *header, MetadataFile *metadata);
+    void Build(LayeredTree *tree, SourceInfoVector *out_infos, Header *header, MetadataFile *metadata);
 
 }
