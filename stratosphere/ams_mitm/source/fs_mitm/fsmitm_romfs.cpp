@@ -40,13 +40,13 @@ namespace ams::mitm::fs {
             MergedTree tree(m_program_id);
 
             if (walk_sd) {
-                tree.AddSdFiles();
+                AddSdFiles(std::addressof(tree), m_program_id);
             }
             if (m_file_romfs) {
-                tree.AddStorageFiles(m_file_romfs.get(), DataSourceType::File);
+                AddStorageFiles(std::addressof(tree), m_file_romfs.get(), DataSourceType::File);
             }
             if (m_storage_romfs) {
-                tree.AddStorageFiles(m_storage_romfs.get(), DataSourceType::Storage);
+                AddStorageFiles(std::addressof(tree), m_storage_romfs.get(), DataSourceType::Storage);
             }
 
             Build(std::addressof(tree), std::addressof(m_source_infos), std::addressof(m_header), std::addressof(m_metadata));

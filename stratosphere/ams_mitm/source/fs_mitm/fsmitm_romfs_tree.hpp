@@ -182,9 +182,6 @@ namespace ams::mitm::fs::romfs {
         }
     };
 
-    class DirectoryTableReader;
-    class FileTableReader;
-
     class MergedTree {
         NON_COPYABLE(MergedTree);
         NON_MOVEABLE(MergedTree);
@@ -219,7 +216,6 @@ namespace ams::mitm::fs::romfs {
             }
         private:
             util::TypedStorage<ScopedHeapLock> m_heap_lock;
-            ncm::ProgramId m_program_id;
             BuildDirectoryContext *m_root;
             ContextSet<AllocationType_DirContextSet, BuildDirectoryContext> m_directories;
             ContextSet<AllocationType_FileContextSet, BuildFileContext> m_files;
@@ -227,21 +223,12 @@ namespace ams::mitm::fs::romfs {
             size_t m_num_files;
             size_t m_dir_table_size;
             size_t m_file_table_size;
-
-            ::FsDirectoryEntry m_dir_entry;
-            DataSourceType m_cur_source_type;
-        private:
-            void VisitDirectory(FsFileSystem *fs, BuildDirectoryContext *parent);
-            void VisitDirectory(BuildDirectoryContext *parent, u32 parent_offset, const Header &header, DirectoryTableReader &dir_table, FileTableReader &file_table);
-            
-            void AddDirectory(BuildDirectoryContext **out, BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildDirectoryContext> file_ctx);
-            void AddFile(BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildFileContext> file_ctx);
         public:
             explicit MergedTree(ncm::ProgramId program_id);
             ~MergedTree();
 
-            void AddSdFiles();
-            void AddStorageFiles(ams::fs::IStorage *storage, DataSourceType source_type);
+            void AddDirectory(BuildDirectoryContext **out, BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildDirectoryContext> file_ctx);
+            void AddFile(BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildFileContext> file_ctx);
 
             BuildDirectoryContext *GetRoot() const { return m_root; }
 
