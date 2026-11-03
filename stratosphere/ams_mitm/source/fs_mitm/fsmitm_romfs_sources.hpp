@@ -98,14 +98,75 @@ namespace ams::mitm::fs::romfs {
         }
     };
 
-    constexpr inline bool operator<(const SourceInfo &lhs, const SourceInfo &rhs) {
-        return lhs.virtual_offset < rhs.virtual_offset;
+    constexpr inline bool operator<(const s64 lhs, const SourceInfo &rhs) {
+        return lhs < rhs.virtual_offset;
     }
 
     constexpr inline bool operator<(const SourceInfo &lhs, const s64 rhs) {
-        return lhs.virtual_offset <= rhs;
+        return lhs.virtual_offset < rhs;
     }
 
-    using SourceInfoVector = std::vector<SourceInfo, TrackedAllocator<AllocationType_SourceInfo, SourceInfo>>;
+    class SourceInfoChunks {
+        NON_COPYABLE(SourceInfoChunks);
+        NON_MOVEABLE(SourceInfoChunks);
+        private:
+            static constexpr size_t ChunkSize       = 4_KB;
+            static constexpr size_t SourcesPerChunk = ChunkSize / sizeof(SourceInfo);
+
+            struct Chunk {
+                SourceInfo *sources;
+                s64 virtual_offset;
+
+                friend bool operator<(s64 offset, const Chunk &chunk) { return offset < chunk.virtual_offset; }
+                friend bool operator<(const Chunk &chunk, s64 offset) { return chunk.virtual_offset < offset; }
+            };
+        private:
+            Chunk *m_chunks;
+            size_t m_index_size;
+            size_t m_count;
+        private:
+            SourceInfo *GetSource(size_t i) const {
+                const size_t chunk = i / SourcesPerChunk;
+                const size_t slot  = i % SourcesPerChunk;
+                return std::addressof(m_chunks[chunk].sources[slot]);
+            }
+
+            SourceInfo *GetBack() const {
+                AMS_ABORT_UNLESS(m_count > 0);
+                return this->GetSource(m_count - 1);
+            }
+
+            size_t GetChunkCount() const;
+
+            void AllocateChunk(s64 virtual_offset);
+        public:
+            SourceInfoChunks();
+            ~SourceInfoChunks();
+
+            const SourceInfo &operator[](size_t i) const {
+                AMS_ABORT_UNLESS(i < m_count);
+                return *this->GetSource(i);
+            }
+
+            const SourceInfo &Back() const { return *this->GetBack(); }
+
+            void Initialize(size_t count);
+
+            template<typename Arg>
+            ALWAYS_INLINE void EmplaceBack(s64 virtual_offset, s64 size, DataSourceType type, Arg arg) {
+                if (m_count % SourcesPerChunk == 0) {
+                    this->AllocateChunk(virtual_offset);
+                }
+                std::construct_at(this->GetSource(m_count), virtual_offset, size, type, arg);
+                ++m_count;
+            }
+
+            ALWAYS_INLINE void ExtendBackTo(s64 end_offset) {
+                SourceInfo * const back = this->GetBack();
+                back->size = end_offset - back->virtual_offset;
+            }
+
+            size_t GetIndexAt(s64 offset) const;
+    };
 
 }

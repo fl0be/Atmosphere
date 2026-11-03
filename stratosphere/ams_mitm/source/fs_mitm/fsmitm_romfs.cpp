@@ -29,12 +29,6 @@ namespace ams::mitm::fs {
             /* ... */
         }
 
-        Romfs::~Romfs() {
-            for (size_t i = 0; i < m_source_infos.size(); i++) {
-                m_source_infos[i].Cleanup();
-            }
-        }
-
         void Romfs::Initialize(bool walk_sd) {
             /* Build new virtual romfs. */
             LayeredTree tree(m_program_id);
@@ -61,16 +55,12 @@ namespace ams::mitm::fs {
                 size = static_cast<size_t>(virt_size - offset);
             }
 
-            /* Find first source info via binary search. */
-            auto it = std::lower_bound(m_source_infos.begin(), m_source_infos.end(), offset);
+            size_t index = m_source_infos.GetIndexAt(offset);
             u8 *cur_dst = static_cast<u8 *>(buffer);
-
-            /* Our operator < compares against start of info instead of end, so we need to subtract one from lower bound. */
-            it--;
 
             size_t read_so_far = 0;
             while (read_so_far < size) {
-                const auto &cur_source = *it;
+                const auto &cur_source = m_source_infos[index];
                 AMS_ABORT_UNLESS(offset >= cur_source.virtual_offset);
 
                 if (offset < cur_source.virtual_offset + cur_source.size) {
@@ -107,7 +97,7 @@ namespace ams::mitm::fs {
                     offset      += cur_read_size;
                 } else {
                     /* Explicitly handle padding. */
-                    const auto &next_source = *(++it);
+                    const auto &next_source = m_source_infos[++index];
                     const size_t padding_size = static_cast<size_t>(next_source.virtual_offset - offset);
 
                     std::memset(cur_dst, 0, padding_size);

@@ -169,6 +169,9 @@ namespace ams::mitm::fs {
 
         namespace {
 
+            constexpr inline size_t HeaderSources   = 1;
+            constexpr inline size_t MetadataSources = 1;
+
             constexpr inline size_t ChooseBucketCount(size_t num_entries) {
                 if (num_entries < 3) {
                     return 3;
@@ -200,17 +203,14 @@ namespace ams::mitm::fs {
                 public:
                     explicit Builder(LayeredTree *tree);
 
-                    void Build(SourceInfoVector *out_infos, Header *header, MetadataFile *metadata);
+                    void Build(SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata);
             };
 
         }
 
         Builder::Builder(LayeredTree *tree) : m_tree(tree), m_layout{}, m_file_partition_size(0) { /* ... */ }
 
-        void Builder::Build(SourceInfoVector *out_infos, Header *header, MetadataFile *metadata) {
-            /* Clear output. */
-            out_infos->clear();
-
+        void Builder::Build(SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata) {
             /* Open an SD card filesystem. */
             FsFileSystem sd_filesystem;
             R_ABORT_UNLESS(fsOpenSdCardFileSystem(std::addressof(sd_filesystem)));
@@ -233,10 +233,8 @@ namespace ams::mitm::fs {
             /* Ensure later hash tables will have correct defaults. */
             static_assert(EmptyEntry == 0xFFFFFFFF);
 
-            /* Emplace metadata source info. */
-            out_infos->emplace_back(0, sizeof(*header), DataSourceType::Memory, header);
-
             /* Process Files. */
+            size_t num_file_sources = 0;
             {
                 u32 entry_offset = 0;
                 BuildFileContext *prev_file = nullptr;
@@ -252,6 +250,8 @@ namespace ams::mitm::fs {
                             AMS_ABORT_UNLESS(expected <= cur_file->orig_offset);
                             m_file_partition_size += cur_file->orig_offset - expected;
                         }
+                    } else {
+                        num_file_sources++;
                     }
 
                     /* Calculate offsets. */
@@ -269,6 +269,11 @@ namespace ams::mitm::fs {
                     cur_file->parent->file = cur_file;
                 }
             }
+
+            out_infos->Initialize(HeaderSources + num_file_sources + MetadataSources);
+
+            /* Emplace metadata source info. */
+            out_infos->EmplaceBack(0, sizeof(*header), DataSourceType::Memory, header);
 
             /* Process Directories. */
             {
@@ -393,11 +398,10 @@ namespace ams::mitm::fs {
                         case DataSourceType::File:
                             {
                                 /* Try to compact if possible. */
-                                auto &back = out_infos->back();
-                                if (back.source_type == cur_file->source_type) {
-                                    back.size = cur_file->offset + FilePartitionOffset + cur_file->size - back.virtual_offset;
+                                if (out_infos->Back().source_type == cur_file->source_type) {
+                                    out_infos->ExtendBackTo(cur_file->offset + FilePartitionOffset + cur_file->size);
                                 } else {
-                                    out_infos->emplace_back(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, cur_file->orig_offset);
+                                    out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, cur_file->orig_offset);
                                 }
                             }
                             break;
@@ -410,7 +414,7 @@ namespace ams::mitm::fs {
 
                                 char *new_path = AllocateTracked<char>(AllocationType_FullPath, path_needed_size);
                                 std::memcpy(new_path, full_path, path_needed_size);
-                                out_infos->emplace_back(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, new_path);
+                                out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, new_path);
                             }
                             break;
                         AMS_UNREACHABLE_DEFAULT_CASE();
@@ -460,11 +464,11 @@ namespace ams::mitm::fs {
             /* Save metadata to the SD card, to save on memory space. */
             {
                 writer.Finish();
-                out_infos->emplace_back(header->directory_bucket_offset, m_layout.TotalSize(), DataSourceType::Metadata, metadata);
+                out_infos->EmplaceBack(header->directory_bucket_offset, m_layout.TotalSize(), DataSourceType::Metadata, metadata);
             }
         }
 
-        void Build(LayeredTree *tree, SourceInfoVector *out_infos, Header *header, MetadataFile *metadata) {
+        void Build(LayeredTree *tree, SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata) {
             Builder builder(tree);
             builder.Build(out_infos, header, metadata);
         }

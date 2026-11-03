@@ -29,17 +29,16 @@ namespace ams::mitm::fs::romfs {
             ncm::ProgramId m_program_id;
             Header m_header;
             MetadataFile m_metadata;
-            SourceInfoVector m_source_infos;
+            SourceInfoChunks m_source_infos;
         public:
             Romfs(std::unique_ptr<ams::fs::IStorage> s_r, std::unique_ptr<ams::fs::IStorage> f_r, ncm::ProgramId pr_id);
-            ~Romfs();
 
             void Initialize(bool walk_sd);
 
             constexpr ncm::ProgramId GetProgramId() const { return m_program_id; }
 
             s64 GetSize() const {
-                const auto &back = m_source_infos.back();
+                const auto &back = m_source_infos.Back();
                 return back.virtual_offset + back.size;
             }
 
