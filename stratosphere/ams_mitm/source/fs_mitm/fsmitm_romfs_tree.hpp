@@ -138,14 +138,6 @@ namespace ams::mitm::fs::romfs {
             FreeTracked(Allocation, ctx, size);
         }
 
-        size_t GetPathLength() const {
-            if (this->parent == nullptr) {
-                return 0;
-            }
-
-            return GetChildPathLength(this->parent->GetPathLength(), this->name_len);
-        }
-
         size_t GetPath(char *dst) const {
             if (this->parent == nullptr) {
                 dst[0] = '\x00';

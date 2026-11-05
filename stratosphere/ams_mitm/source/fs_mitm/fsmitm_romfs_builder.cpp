@@ -379,6 +379,8 @@ namespace ams::mitm::fs {
 
             /* Write the file table. */
             {
+                const BuildDirectoryContext *loose_parent = nullptr;
+                const LooseDirectory *loose_dir = nullptr;
                 while (BuildFileContext *cur_file = m_tree->GetFrontFile()) {
                     FileEntry *cur_entry = writer.AppendFileEntry(cur_file->name_len);
 
@@ -407,14 +409,18 @@ namespace ams::mitm::fs {
                             break;
                         case DataSourceType::LooseSdFile:
                             {
-                                char full_path[fs::EntryNameLengthMax + 1];
-                                const size_t path_needed_size = cur_file->GetPathLength() + 1;
-                                AMS_ABORT_UNLESS(path_needed_size <= sizeof(full_path));
-                                cur_file->GetPath(full_path);
+                                if (cur_file->parent != loose_parent) {
+                                    char dir_path[fs::EntryNameLengthMax + 1];
+                                    AMS_ABORT_UNLESS(cur_file->parent->GetPathLength() <= fs::EntryNameLengthMax);
+                                    const size_t dir_len = cur_file->parent->GetPath(dir_path);
 
-                                char *new_path = AllocateTracked<char>(AllocationType_FullPath, path_needed_size);
-                                std::memcpy(new_path, full_path, path_needed_size);
-                                out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, new_path);
+                                    loose_dir    = out_infos->GetLoosePathBlocks().AddDirectory(dir_path, dir_len);
+                                    loose_parent = cur_file->parent;
+                                }
+                                AMS_ABORT_UNLESS(GetChildPathLength(loose_dir->path_len, cur_file->name_len) <= fs::EntryNameLengthMax);
+
+                                LoosePath * const path = out_infos->GetLoosePathBlocks().AddFile(loose_dir, cur_file->name, cur_file->name_len);
+                                out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, path);
                             }
                             break;
                         AMS_UNREACHABLE_DEFAULT_CASE();

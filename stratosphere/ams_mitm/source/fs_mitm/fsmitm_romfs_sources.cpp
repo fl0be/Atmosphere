@@ -22,6 +22,47 @@ namespace ams::mitm::fs {
 
     namespace romfs {
 
+        void LoosePath::GetFullPath(char *dst) const {
+            const size_t dir_len = this->directory->path_len;
+            std::memcpy(dst, this->directory->path, dir_len);
+            dst[dir_len] = '/';
+            std::memcpy(dst + dir_len + 1, this->name, std::strlen(this->name) + 1);
+        }
+
+        LoosePathBlocks::LoosePathBlocks() : m_blocks(nullptr), m_cursor(nullptr), m_left(0) { /* ... */ }
+
+        LoosePathBlocks::~LoosePathBlocks() {
+            while (m_blocks != nullptr) {
+                Block * const next = m_blocks->next;
+                FreeTracked(AllocationType_FullPath, m_blocks, m_blocks->size);
+                m_blocks = next;
+            }
+        }
+
+        void LoosePathBlocks::AddBlock(size_t size) {
+            const size_t next_size  = m_blocks != nullptr ? std::min(m_blocks->size * 2, MaxBlockSize) : FirstBlockSize;
+            const size_t block_size = std::max(next_size, sizeof(Block) + size);
+            Block * const block = AllocateTracked<Block>(AllocationType_FullPath, block_size);
+
+            block->next = m_blocks;
+            block->size = block_size;
+            m_blocks = block;
+            m_cursor = reinterpret_cast<u8 *>(block + 1);
+            m_left   = block_size - sizeof(Block);
+        }
+
+        void *LoosePathBlocks::Allocate(size_t size) {
+            size = util::AlignUp(size, alignof(void *));
+            if (size > m_left) {
+                this->AddBlock(size);
+            }
+
+            void * const piece = m_cursor;
+            m_cursor += size;
+            m_left   -= size;
+            return piece;
+        }
+
         namespace {
 
             template<typename T>
@@ -44,12 +85,9 @@ namespace ams::mitm::fs {
             chunk.virtual_offset = virtual_offset;
         }
 
-        SourceInfoChunks::SourceInfoChunks() : m_chunks(nullptr), m_index_size(0), m_count(0) { /* ... */ }
+        SourceInfoChunks::SourceInfoChunks() : m_chunks(nullptr), m_index_size(0), m_count(0), m_loose_path_blocks() { /* ... */ }
 
         SourceInfoChunks::~SourceInfoChunks() {
-            for (size_t i = 0; i < m_count; ++i) {
-                this->GetSource(i)->Cleanup();
-            }
             for (size_t i = 0; i < this->GetChunkCount(); ++i) {
                 FreeTracked(AllocationType_SourceInfo, m_chunks[i].sources, ChunkSize);
             }

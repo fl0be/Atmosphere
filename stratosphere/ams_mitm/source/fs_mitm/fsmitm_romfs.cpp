@@ -75,8 +75,11 @@ namespace ams::mitm::fs {
                             break;
                         case DataSourceType::LooseSdFile:
                             {
+                                char full_path[fs::EntryNameLengthMax + 1];
+                                cur_source.loose_source_info.path->GetFullPath(full_path);
+
                                 FsFile file;
-                                R_ABORT_UNLESS(mitm::fs::OpenAtmosphereSdRomfsFile(std::addressof(file), m_program_id, cur_source.loose_source_info.path, OpenMode_Read));
+                                R_ABORT_UNLESS(mitm::fs::OpenAtmosphereSdRomfsFile(std::addressof(file), m_program_id, full_path, OpenMode_Read));
                                 ON_SCOPE_EXIT { fsFileClose(std::addressof(file)); };
 
                                 u64 out_read = 0;

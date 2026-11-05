@@ -30,6 +30,63 @@ namespace ams::mitm::fs::romfs {
         Memory,
     };
 
+    struct LooseDirectory {
+        u32 path_len;
+        char path[];
+
+        LooseDirectory(const char *dir_path, size_t dir_len) : path_len(static_cast<u32>(dir_len)) {
+            std::memcpy(this->path, dir_path, dir_len);
+        }
+    };
+
+    struct LoosePath {
+        const LooseDirectory *directory;
+        char name[];
+
+        LoosePath(const LooseDirectory *dir, const char *file_name, size_t name_len) : directory(dir) {
+            std::memcpy(this->name, file_name, name_len);
+            this->name[name_len] = '\x00';
+        }
+
+        void GetFullPath(char *dst) const;
+    };
+
+    class LoosePathBlocks {
+        NON_COPYABLE(LoosePathBlocks);
+        NON_MOVEABLE(LoosePathBlocks);
+        private:
+            static constexpr size_t FirstBlockSize = 256;
+            static constexpr size_t MaxBlockSize   = 4_KB;
+
+            struct Block {
+                Block *next;
+                size_t size;
+            };
+        private:
+            Block *m_blocks;
+            u8 *m_cursor;
+            size_t m_left;
+        private:
+            void AddBlock(size_t size);
+            void *Allocate(size_t size);
+
+            template<typename T, typename... Args>
+            T *Create(size_t trailing, Args... args) {
+                return std::construct_at(static_cast<T *>(this->Allocate(sizeof(T) + trailing)), args...);
+            }
+        public:
+            LoosePathBlocks();
+            ~LoosePathBlocks();
+
+            const LooseDirectory *AddDirectory(const char *path, size_t path_len) {
+                return this->Create<LooseDirectory>(path_len, path, path_len);
+            }
+
+            LoosePath *AddFile(const LooseDirectory *directory, const char *name, size_t name_len) {
+                return this->Create<LoosePath>(name_len + 1, directory, name, name_len);
+            }
+    };
+
     struct SourceInfo {
         s64 virtual_offset;
         s64 size;
@@ -41,7 +98,7 @@ namespace ams::mitm::fs::romfs {
                 s64 offset;
             } file_source_info;
             struct {
-                char *path;
+                LoosePath *path;
             } loose_source_info;
             struct {
                 MetadataFile *file;
@@ -51,9 +108,8 @@ namespace ams::mitm::fs::romfs {
             } memory_source_info;
         };
         DataSourceType source_type;
-        bool cleaned_up;
 
-        SourceInfo(s64 v_o, s64 sz, DataSourceType type, s64 p_o) : virtual_offset(v_o), size(sz), source_type(type), cleaned_up(false) {
+        SourceInfo(s64 v_o, s64 sz, DataSourceType type, s64 p_o) : virtual_offset(v_o), size(sz), source_type(type) {
             switch (this->source_type) {
                 case DataSourceType::Storage:
                     this->storage_source_info.offset = p_o;
@@ -65,33 +121,16 @@ namespace ams::mitm::fs::romfs {
             }
         }
 
-        SourceInfo(s64 v_o, s64 sz, DataSourceType type, void *arg) : virtual_offset(v_o), size(sz), source_type(type), cleaned_up(false) {
+        SourceInfo(s64 v_o, s64 sz, DataSourceType type, void *arg) : virtual_offset(v_o), size(sz), source_type(type) {
             switch (this->source_type) {
                 case DataSourceType::LooseSdFile:
-                    this->loose_source_info.path = static_cast<char *>(arg);
+                    this->loose_source_info.path = static_cast<LoosePath *>(arg);
                     break;
                 case DataSourceType::Metadata:
                     this->metadata_source_info.file = static_cast<MetadataFile *>(arg);
                     break;
                 case DataSourceType::Memory:
                     this->memory_source_info.data = static_cast<u8 *>(arg);
-                    break;
-                AMS_UNREACHABLE_DEFAULT_CASE();
-            }
-        }
-
-        void Cleanup() {
-            AMS_ABORT_UNLESS(!this->cleaned_up);
-            this->cleaned_up = true;
-
-            switch (this->source_type) {
-                case DataSourceType::Storage:
-                case DataSourceType::File:
-                case DataSourceType::Metadata:
-                case DataSourceType::Memory:
-                    break;
-                case DataSourceType::LooseSdFile:
-                    FreeTracked(AllocationType_FullPath, this->loose_source_info.path, std::strlen(this->loose_source_info.path) + 1);
                     break;
                 AMS_UNREACHABLE_DEFAULT_CASE();
             }
@@ -124,6 +163,7 @@ namespace ams::mitm::fs::romfs {
             Chunk *m_chunks;
             size_t m_index_size;
             size_t m_count;
+            LoosePathBlocks m_loose_path_blocks;
         private:
             SourceInfo *GetSource(size_t i) const {
                 const size_t chunk = i / SourcesPerChunk;
@@ -160,6 +200,8 @@ namespace ams::mitm::fs::romfs {
                 std::construct_at(this->GetSource(m_count), virtual_offset, size, type, arg);
                 ++m_count;
             }
+
+            LoosePathBlocks &GetLoosePathBlocks() { return m_loose_path_blocks; }
 
             ALWAYS_INLINE void ExtendBackTo(s64 end_offset) {
                 SourceInfo * const back = this->GetBack();
