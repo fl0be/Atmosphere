@@ -103,4 +103,8 @@ namespace ams::mitm::fs::romfs {
         return sizeof(u32) * num_buckets;
     }
 
+    constexpr ALWAYS_INLINE size_t GetBucketCount(size_t table_size) {
+        return table_size / sizeof(u32);
+    }
+
 }
