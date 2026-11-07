@@ -31,7 +31,7 @@ namespace ams::mitm::fs::romfs {
     };
 
     struct LooseDirectory {
-        u32 path_len;
+        const u32 path_len;
         char path[];
 
         LooseDirectory(const char *dir_path, size_t dir_len) : path_len(static_cast<u32>(dir_len)) {
@@ -40,7 +40,7 @@ namespace ams::mitm::fs::romfs {
     };
 
     struct LoosePath {
-        const LooseDirectory *directory;
+        const LooseDirectory * const directory;
         char name[];
 
         LoosePath(const LooseDirectory *dir, const char *file_name, size_t name_len) : directory(dir) {

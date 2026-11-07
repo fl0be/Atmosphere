@@ -72,12 +72,12 @@ namespace ams::mitm::fs {
                                 AMS_ABORT_UNLESS(child_dirs != nullptr);
 
                                 BuildDirectoryContext *real_child = nullptr;
-                                tree->AddDirectory(std::addressof(real_child), parent, std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>(dir_entry->name, strlen(dir_entry->name))));
+                                tree->AddDirectory(std::addressof(real_child), std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>(dir_entry->name, strlen(dir_entry->name), parent)));
                                 AMS_ABORT_UNLESS(real_child != nullptr);
                                 child_dirs[cur_child_dir_ind++] = real_child;
                                 AMS_ABORT_UNLESS(cur_child_dir_ind <= num_child_dirs);
                             } else /* if (dir_entry->type == FsDirEntryType_File) */ {
-                                tree->AddFile(parent, std::unique_ptr<BuildFileContext>(CreateContext<BuildFileContext>(dir_entry->name, strlen(dir_entry->name), dir_entry->file_size, 0, DataSourceType::LooseSdFile)));
+                                tree->AddFile(std::unique_ptr<BuildFileContext>(CreateContext<BuildFileContext>(dir_entry->name, strlen(dir_entry->name), parent, dir_entry->file_size, 0, DataSourceType::LooseSdFile)));
                             }
                         }
                     }
@@ -103,7 +103,7 @@ namespace ams::mitm::fs {
                         return;
                     }
 
-                    tree->AddFile(parent, std::unique_ptr<BuildFileContext>(CreateContext<BuildFileContext>(cur_file->name, cur_file->name_size, cur_file->size, GetFileDataOffset(header, *cur_file), source_type)));
+                    tree->AddFile(std::unique_ptr<BuildFileContext>(CreateContext<BuildFileContext>(cur_file->name, cur_file->name_size, parent, cur_file->size, GetFileDataOffset(header, *cur_file), source_type)));
 
                     cur_file_offset = cur_file->sibling;
                 }
@@ -118,7 +118,7 @@ namespace ams::mitm::fs {
                             return;
                         }
 
-                        tree->AddDirectory(std::addressof(real_child), parent, std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>(cur_child->name, cur_child->name_size)));
+                        tree->AddDirectory(std::addressof(real_child), std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>(cur_child->name, cur_child->name_size, parent)));
                         AMS_ABORT_UNLESS(real_child != nullptr);
 
                         next_child_offset = cur_child->sibling;
@@ -196,7 +196,7 @@ namespace ams::mitm::fs {
             template<typename Contexts>
             void WriteBuckets(MetadataWriter *writer, void (MetadataWriter::*append)(const void *, size_t), Contexts contexts, size_t bucket_size) {
                 const size_t num_buckets = GetBucketCount(bucket_size);
-                for (auto *cur_ctx : contexts) {
+                for (auto * const cur_ctx : contexts) {
                     cur_ctx->hash_value = GetBucketIndex(cur_ctx->parent == nullptr ? RootEntryOffset : cur_ctx->parent->entry_offset, cur_ctx->name, cur_ctx->name_len, num_buckets);
                 }
 
@@ -211,7 +211,7 @@ namespace ams::mitm::fs {
                     const u32 ofs_ind = ofs / sizeof(u32);
                     const u32 end_ind = (ofs + hash_table_size) / sizeof(u32);
 
-                    for (auto *cur_ctx : contexts) {
+                    for (auto * const cur_ctx : contexts) {
                         if (cur_ctx->HasHashMark()) {
                             continue;
                         }
@@ -232,7 +232,7 @@ namespace ams::mitm::fs {
                 NON_COPYABLE(Builder);
                 NON_MOVEABLE(Builder);
                 private:
-                    LayeredTree *m_tree;
+                    LayeredTree * const m_tree;
                     MetadataLayout m_layout;
                     size_t m_file_partition_size;
                 public:
@@ -298,7 +298,7 @@ namespace ams::mitm::fs {
             size_t num_file_sources = 0;
             u32 entry_offset = 0;
             BuildFileContext *prev_file = nullptr;
-            for (BuildFileContext *cur_file : m_tree->GetFiles()) {
+            for (BuildFileContext * const cur_file : m_tree->GetFiles()) {
                 /* By default, pad to 0x10 alignment. */
                 m_file_partition_size = AlignFileContent(m_file_partition_size);
 
@@ -324,7 +324,7 @@ namespace ams::mitm::fs {
                 prev_file = cur_file;
             }
             /* Assign deferred parent/sibling ownership. */
-            for (BuildFileContext *cur_file : m_tree->GetFiles() | std::views::reverse) {
+            for (BuildFileContext * const cur_file : m_tree->GetFiles() | std::views::reverse) {
                 cur_file->sibling = cur_file->parent->file;
                 cur_file->parent->file = cur_file;
             }
@@ -339,12 +339,12 @@ namespace ams::mitm::fs {
 
             /* Process Directories. */
             u32 entry_offset = 0;
-            for (BuildDirectoryContext *cur_dir : m_tree->GetDirectories()) {
+            for (BuildDirectoryContext * const cur_dir : m_tree->GetDirectories()) {
                 cur_dir->entry_offset = entry_offset;
                 entry_offset += EntrySize<DirectoryEntry>(cur_dir->name_len);
             }
             /* Assign deferred parent/sibling ownership. */
-            for (BuildDirectoryContext *cur_dir : m_tree->GetDirectories() | std::views::reverse) {
+            for (BuildDirectoryContext * const cur_dir : m_tree->GetDirectories() | std::views::reverse) {
                 if (cur_dir == m_tree->GetRoot()) {
                     continue;
                 }
@@ -356,7 +356,7 @@ namespace ams::mitm::fs {
         void Builder::DecoupleContexts() {
             /* Replace sibling pointers with sibling entry_offsets, so that we can de-allocate as we go. */
             /* Set all directories sibling and file pointers. */
-            for (BuildDirectoryContext *cur_dir : m_tree->GetDirectories()) {
+            for (BuildDirectoryContext * const cur_dir : m_tree->GetDirectories()) {
                 cur_dir->ClearHashMark();
 
                 cur_dir->sibling_offset = (cur_dir->sibling == nullptr) ? EmptyEntry : cur_dir->sibling->entry_offset;
@@ -367,7 +367,7 @@ namespace ams::mitm::fs {
             }
 
             /* Replace all files' sibling pointers. */
-            for (BuildFileContext *cur_file : m_tree->GetFiles()) {
+            for (BuildFileContext * const cur_file : m_tree->GetFiles()) {
                 cur_file->ClearHashMark();
 
                 cur_file->sibling_offset = (cur_file->sibling == nullptr) ? EmptyEntry : cur_file->sibling->entry_offset;
@@ -377,7 +377,7 @@ namespace ams::mitm::fs {
         void Builder::WriteFileTable(SourceInfoChunks *out_infos, MetadataWriter *writer) {
             const BuildDirectoryContext *loose_parent = nullptr;
             const LooseDirectory *loose_dir = nullptr;
-            while (BuildFileContext *cur_file = m_tree->GetFrontFile()) {
+            while (BuildFileContext * const cur_file = m_tree->GetFrontFile()) {
                 FileEntry *cur_entry = writer->AppendFileEntry(cur_file->name_len);
 
                 /* Set entry fields. */
@@ -429,7 +429,7 @@ namespace ams::mitm::fs {
         }
 
         void Builder::WriteDirectoryTable(MetadataWriter *writer) {
-            while (BuildDirectoryContext *cur_dir = m_tree->GetFrontDirectory()) {
+            while (BuildDirectoryContext * const cur_dir = m_tree->GetFrontDirectory()) {
                 DirectoryEntry *cur_entry = writer->AppendDirectoryEntry(cur_dir->name_len);
 
                 /* Set entry fields. */

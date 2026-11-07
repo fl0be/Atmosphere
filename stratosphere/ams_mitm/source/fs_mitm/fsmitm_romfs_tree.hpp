@@ -31,8 +31,7 @@ namespace ams::mitm::fs::romfs {
 
     template<typename Context, typename... Args>
     Context *CreateContext(const char *name, size_t name_len, Args... args) {
-        auto * const ctx = std::construct_at(AllocateTracked<Context>(Context::Allocation, ContextAllocationSize<Context>(name_len)), args...);
-        ctx->name_len = name_len;
+        auto * const ctx = std::construct_at(AllocateTracked<Context>(Context::Allocation, ContextAllocationSize<Context>(name_len)), name_len, args...);
         std::memcpy(ctx->name, name, name_len);
         ctx->name[name_len] = '\x00';
         return ctx;
@@ -44,9 +43,7 @@ namespace ams::mitm::fs::romfs {
 
         static constexpr AllocationType Allocation = AllocationType_BuildDirContext;
 
-        union {
-            BuildDirectoryContext *parent;
-        };
+        BuildDirectoryContext * const parent;
         union {
             BuildDirectoryContext *child;
             struct {
@@ -62,12 +59,12 @@ namespace ams::mitm::fs::romfs {
             BuildFileContext *file;
             u32 file_offset;
         };
-        u32 name_len;
+        const u32 name_len;
         u32 entry_offset;
         u32 hash_value;
         char name[];
 
-        BuildDirectoryContext() : parent(nullptr), child(nullptr), sibling(nullptr), file(nullptr), entry_offset(0), hash_value(EmptyEntry) { /* ... */ }
+        BuildDirectoryContext(size_t len, BuildDirectoryContext *p) : parent(p), child(nullptr), sibling(nullptr), file(nullptr), name_len(static_cast<u32>(len)), entry_offset(0), hash_value(EmptyEntry) { /* ... */ }
 
         void operator delete(BuildDirectoryContext *ctx, std::destroying_delete_t) {
             const size_t size = ContextAllocationSize<BuildDirectoryContext>(ctx->name_len);
@@ -116,7 +113,7 @@ namespace ams::mitm::fs::romfs {
 
         static constexpr AllocationType Allocation = AllocationType_BuildFileContext;
 
-        BuildDirectoryContext *parent;
+        BuildDirectoryContext * const parent;
         union {
             BuildFileContext *sibling;
             u32 sibling_offset;
@@ -124,13 +121,13 @@ namespace ams::mitm::fs::romfs {
         s64 offset;
         s64 size;
         s64 orig_offset;
-        u32 name_len;
+        const u32 name_len;
         u32 entry_offset;
         u32 hash_value;
         DataSourceType source_type;
         char name[];
 
-        BuildFileContext(s64 sz, s64 o_o, DataSourceType type) : parent(nullptr), sibling(nullptr), offset(0), size(sz), orig_offset(o_o), entry_offset(0), hash_value(EmptyEntry), source_type(type) { /* ... */ }
+        BuildFileContext(size_t len, BuildDirectoryContext *p, s64 sz, s64 o_o, DataSourceType type) : parent(p), sibling(nullptr), offset(0), size(sz), orig_offset(o_o), name_len(static_cast<u32>(len)), entry_offset(0), hash_value(EmptyEntry), source_type(type) { /* ... */ }
 
         void operator delete(BuildFileContext *ctx, std::destroying_delete_t) {
             const size_t size = ContextAllocationSize<BuildFileContext>(ctx->name_len);
@@ -210,8 +207,8 @@ namespace ams::mitm::fs::romfs {
             explicit LayeredTree(ncm::ProgramId program_id);
             ~LayeredTree();
 
-            void AddDirectory(BuildDirectoryContext **out, BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildDirectoryContext> file_ctx);
-            void AddFile(BuildDirectoryContext *parent_ctx, std::unique_ptr<BuildFileContext> file_ctx);
+            void AddDirectory(BuildDirectoryContext **out, std::unique_ptr<BuildDirectoryContext> file_ctx);
+            void AddFile(std::unique_ptr<BuildFileContext> file_ctx);
 
             BuildDirectoryContext *GetRoot() const { return m_root; }
 

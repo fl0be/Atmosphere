@@ -26,7 +26,7 @@ namespace ams::mitm::fs::romfs {
         private:
             std::unique_ptr<ams::fs::IStorage> m_storage_romfs;
             std::unique_ptr<ams::fs::IStorage> m_file_romfs;
-            ncm::ProgramId m_program_id;
+            const ncm::ProgramId m_program_id;
             Header m_header;
             MetadataFile m_metadata;
             SourceInfoChunks m_source_infos;

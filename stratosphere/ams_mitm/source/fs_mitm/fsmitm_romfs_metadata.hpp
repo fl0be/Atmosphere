@@ -39,7 +39,7 @@ namespace ams::mitm::fs::romfs {
         private:
             static constexpr const char FileName[] = "romfs_metadata.bin";
         private:
-            ncm::ProgramId m_program_id;
+            const ncm::ProgramId m_program_id;
             ::FsFile m_file;
             bool m_opened;
         private:
@@ -59,7 +59,7 @@ namespace ams::mitm::fs::romfs {
         NON_COPYABLE(MetadataWriter);
         NON_MOVEABLE(MetadataWriter);
         private:
-            MetadataFile *m_file;
+            MetadataFile * const m_file;
             MetadataLayout m_layout;
             size_t m_dir_buckets_written;
             size_t m_file_buckets_written;
