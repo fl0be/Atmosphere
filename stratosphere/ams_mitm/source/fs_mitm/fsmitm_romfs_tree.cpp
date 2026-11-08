@@ -26,7 +26,7 @@ namespace ams::mitm::fs {
         LayeredTree::LayeredTree(ncm::ProgramId program_id) : m_num_dirs(0), m_num_files(0), m_dir_table_size(0), m_file_table_size(0) {
             util::ConstructAt(m_heap_lock, program_id);
 
-            auto res = m_directories.emplace(std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>("", 0, nullptr)));
+            const auto res = m_directories.emplace(std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>("", 0, nullptr)));
             AMS_ABORT_UNLESS(res.second);
             m_root = res.first->get();
             m_num_dirs = 1;

@@ -51,7 +51,7 @@ namespace ams::mitm::fs {
                 AMS_ABORT_UNLESS(num_child_dirs >= 0);
 
                 {
-                    BuildDirectoryContext **child_dirs = num_child_dirs != 0 ? AllocateTracked<BuildDirectoryContext *>(AllocationType_DirPointerArray, sizeof(BuildDirectoryContext *) * num_child_dirs) : nullptr;
+                    BuildDirectoryContext ** const child_dirs = num_child_dirs != 0 ? AllocateTracked<BuildDirectoryContext *>(AllocationType_DirPointerArray, sizeof(BuildDirectoryContext *) * num_child_dirs) : nullptr;
                     AMS_ABORT_UNLESS(num_child_dirs == 0 || child_dirs != nullptr);
                     ON_SCOPE_EXIT { if (child_dirs != nullptr) { FreeTracked(AllocationType_DirPointerArray, child_dirs, sizeof(BuildDirectoryContext *) * num_child_dirs); } };
 
@@ -375,7 +375,7 @@ namespace ams::mitm::fs {
             const BuildDirectoryContext *loose_parent = nullptr;
             const LooseDirectory *loose_dir = nullptr;
             while (BuildFileContext * const cur_file = m_tree->GetFrontFile()) {
-                FileEntry *cur_entry = writer->AppendFileEntry(cur_file->name_len);
+                FileEntry * const cur_entry = writer->AppendFileEntry(cur_file->name_len);
 
                 /* Set entry fields. */
                 cur_entry->parent  = cur_file->parent->entry_offset;
@@ -427,7 +427,7 @@ namespace ams::mitm::fs {
 
         void Builder::WriteDirectoryTable(MetadataWriter *writer) {
             while (BuildDirectoryContext * const cur_dir = m_tree->GetFrontDirectory()) {
-                DirectoryEntry *cur_entry = writer->AppendDirectoryEntry(cur_dir->name_len);
+                DirectoryEntry * const cur_entry = writer->AppendDirectoryEntry(cur_dir->name_len);
 
                 /* Set entry fields. */
                 cur_entry->parent  = cur_dir->parent_offset;
