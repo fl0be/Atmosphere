@@ -86,6 +86,14 @@ namespace ams::mitm::fs::romfs {
         return parent_len + sizeof(ams::fs::StringTraits::DirectorySeparator) + name_len;
     }
 
+    ALWAYS_INLINE size_t AppendChildPart(char *dst, size_t parent_len, const char *name, size_t name_len) {
+        const size_t len = GetChildPathLength(parent_len, name_len);
+        dst[parent_len] = ams::fs::StringTraits::DirectorySeparator;
+        std::memcpy(dst + parent_len + 1, name, name_len);
+        dst[len] = ams::fs::StringTraits::NullTerminator;
+        return len;
+    }
+
     constexpr inline u32 CalculatePathHash(u32 parent, const char *path, u32 start, size_t path_len) {
         u32 hash = parent ^ 123456789;
         for (size_t i = 0; i < path_len; i++) {

@@ -86,12 +86,7 @@ namespace ams::mitm::fs::romfs {
                 return 0;
             }
 
-            const size_t parent_len = this->parent->GetPath(dst);
-            const size_t len = GetChildPathLength(parent_len, this->name_len);
-            dst[parent_len] = '/';
-            std::memcpy(dst + parent_len + 1, this->name, this->name_len);
-            dst[len] = '\x00';
-            return len;
+            return AppendChildPart(dst, this->parent->GetPath(dst), this->name, this->name_len);
         }
 
         bool HasHashMark() const {
@@ -141,12 +136,7 @@ namespace ams::mitm::fs::romfs {
                 return 0;
             }
 
-            const size_t parent_len = this->parent->GetPath(dst);
-            const size_t len = GetChildPathLength(parent_len, this->name_len);
-            dst[parent_len] = '/';
-            std::memcpy(dst + parent_len + 1, this->name, this->name_len);
-            dst[len] = '\x00';
-            return len;
+            return AppendChildPart(dst, this->parent->GetPath(dst), this->name, this->name_len);
         }
 
         bool HasHashMark() const {
