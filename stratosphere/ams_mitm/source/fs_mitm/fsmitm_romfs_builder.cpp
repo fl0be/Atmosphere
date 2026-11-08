@@ -71,13 +71,11 @@ namespace ams::mitm::fs {
                             if (dir_entry->type == FsDirEntryType_Dir) {
                                 AMS_ABORT_UNLESS(child_dirs != nullptr);
 
-                                BuildDirectoryContext *real_child = nullptr;
-                                tree->AddDirectory(std::addressof(real_child), std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>(dir_entry->name, strlen(dir_entry->name), parent)));
-                                AMS_ABORT_UNLESS(real_child != nullptr);
+                                BuildDirectoryContext * const real_child = tree->AddDirectory(parent, dir_entry->name, strlen(dir_entry->name));
                                 child_dirs[cur_child_dir_ind++] = real_child;
                                 AMS_ABORT_UNLESS(cur_child_dir_ind <= num_child_dirs);
                             } else /* if (dir_entry->type == FsDirEntryType_File) */ {
-                                tree->AddFile(std::unique_ptr<BuildFileContext>(CreateContext<BuildFileContext>(dir_entry->name, strlen(dir_entry->name), parent, dir_entry->file_size, 0, DataSourceType::LooseSdFile)));
+                                tree->AddFile(parent, dir_entry->name, strlen(dir_entry->name), dir_entry->file_size, 0, DataSourceType::LooseSdFile);
                             }
                         }
                     }
@@ -103,7 +101,7 @@ namespace ams::mitm::fs {
                         return;
                     }
 
-                    tree->AddFile(std::unique_ptr<BuildFileContext>(CreateContext<BuildFileContext>(cur_file->name, cur_file->name_size, parent, cur_file->size, GetFileDataOffset(header, *cur_file), source_type)));
+                    tree->AddFile(parent, cur_file->name, cur_file->name_size, cur_file->size, GetFileDataOffset(header, *cur_file), source_type);
 
                     cur_file_offset = cur_file->sibling;
                 }
@@ -118,8 +116,7 @@ namespace ams::mitm::fs {
                             return;
                         }
 
-                        tree->AddDirectory(std::addressof(real_child), std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>(cur_child->name, cur_child->name_size, parent)));
-                        AMS_ABORT_UNLESS(real_child != nullptr);
+                        real_child = tree->AddDirectory(parent, cur_child->name, cur_child->name_size);
 
                         next_child_offset = cur_child->sibling;
                         __asm__ __volatile__("" ::: "memory");

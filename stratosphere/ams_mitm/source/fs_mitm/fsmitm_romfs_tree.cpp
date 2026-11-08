@@ -37,23 +37,27 @@ namespace ams::mitm::fs {
             util::DestroyAt(m_heap_lock);
         }
 
-        void LayeredTree::AddDirectory(BuildDirectoryContext **out, std::unique_ptr<BuildDirectoryContext> child_ctx) {
+        BuildDirectoryContext *LayeredTree::AddDirectory(BuildDirectoryContext *parent_ctx, const char *name, size_t name_len) {
+            std::unique_ptr<BuildDirectoryContext> child_ctx(CreateContext<BuildDirectoryContext>(name, name_len, parent_ctx));
+
             /* Check if the directory already exists. */
             auto existing = m_directories.find(child_ctx);
             if (existing != m_directories.end()) {
-                *out = existing->get();
-                return;
+                return existing->get();
             }
 
             /* Add a new directory. */
             m_num_dirs++;
             m_dir_table_size += EntrySize<DirectoryEntry>(child_ctx->name_len);
 
-            *out = child_ctx.get();
+            BuildDirectoryContext * const added = child_ctx.get();
             m_directories.emplace(std::move(child_ctx));
+            return added;
         }
 
-        void LayeredTree::AddFile(std::unique_ptr<BuildFileContext> file_ctx) {
+        void LayeredTree::AddFile(BuildDirectoryContext *parent_ctx, const char *name, size_t name_len, s64 size, s64 orig_offset, DataSourceType source_type) {
+            std::unique_ptr<BuildFileContext> file_ctx(CreateContext<BuildFileContext>(name, name_len, parent_ctx, size, orig_offset, source_type));
+
             /* Check if the file already exists. */
             if (m_files.find(file_ctx) != m_files.end()) {
                 return;

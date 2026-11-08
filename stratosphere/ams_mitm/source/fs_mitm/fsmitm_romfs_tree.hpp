@@ -207,8 +207,8 @@ namespace ams::mitm::fs::romfs {
             explicit LayeredTree(ncm::ProgramId program_id);
             ~LayeredTree();
 
-            void AddDirectory(BuildDirectoryContext **out, std::unique_ptr<BuildDirectoryContext> file_ctx);
-            void AddFile(std::unique_ptr<BuildFileContext> file_ctx);
+            BuildDirectoryContext *AddDirectory(BuildDirectoryContext *parent_ctx, const char *name, size_t name_len);
+            void AddFile(BuildDirectoryContext *parent_ctx, const char *name, size_t name_len, s64 size, s64 orig_offset, DataSourceType source_type);
 
             BuildDirectoryContext *GetRoot() const { return m_root; }
 
