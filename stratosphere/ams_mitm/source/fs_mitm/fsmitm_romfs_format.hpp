@@ -36,6 +36,8 @@ namespace ams::mitm::fs::romfs {
     constexpr inline u32 EmptyEntry = 0xFFFFFFFF;
     constexpr inline u32 RootEntryOffset = 0;
 
+    constexpr inline size_t MaxTableSize = std::numeric_limits<u32>::max();
+
     constexpr ALWAYS_INLINE s64 AlignFileContent(s64 offset) {
         return util::AlignUp(offset, FileContentAlignment);
     }

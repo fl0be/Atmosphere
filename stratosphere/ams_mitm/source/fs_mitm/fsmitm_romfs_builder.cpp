@@ -286,14 +286,10 @@ namespace ams::mitm::fs {
         }
 
         size_t Builder::PlaceFiles() {
-            /* Calculate hash table sizes. */
-            const size_t num_file_hash_table_entries = ChooseBucketCount(m_tree->GetFileCount());
-            m_layout.file_bucket_size = GetBucketTableSize(num_file_hash_table_entries);
-            m_layout.file_entry_size  = m_tree->GetFileTableSize();
-
             /* Process Files. */
             size_t num_file_sources = 0;
-            u32 entry_offset = 0;
+            size_t num_files  = 0;
+            size_t table_size = 0;
             BuildFileContext *prev_file = nullptr;
             for (BuildFileContext * const cur_file : m_tree->GetFiles()) {
                 /* By default, pad to 0x10 alignment. */
@@ -314,8 +310,9 @@ namespace ams::mitm::fs {
                 /* Calculate offsets. */
                 cur_file->offset = m_file_partition_size;
                 m_file_partition_size += cur_file->size;
-                cur_file->entry_offset = entry_offset;
-                entry_offset += EntrySize<FileEntry>(cur_file->name_len);
+                cur_file->entry_offset = static_cast<u32>(table_size);
+                table_size += EntrySize<FileEntry>(cur_file->name_len);
+                ++num_files;
 
                 /* Save current file as prev for next iteration. */
                 prev_file = cur_file;
@@ -325,20 +322,20 @@ namespace ams::mitm::fs {
                 cur_file->sibling = cur_file->parent->file;
                 cur_file->parent->file = cur_file;
             }
+
+            AMS_ABORT_UNLESS(table_size <= MaxTableSize);
+            m_layout.file_entry_size  = table_size;
+            m_layout.file_bucket_size = GetBucketTableSize(ChooseBucketCount(num_files));
             return num_file_sources;
         }
 
         void Builder::PlaceDirectories() {
-            /* Calculate hash table sizes. */
-            const size_t num_dir_hash_table_entries = ChooseBucketCount(m_tree->GetDirectoryCount());
-            m_layout.dir_bucket_size = GetBucketTableSize(num_dir_hash_table_entries);
-            m_layout.dir_entry_size  = m_tree->GetDirectoryTableSize();
-
-            /* Process Directories. */
-            u32 entry_offset = 0;
+            size_t num_dirs   = 0;
+            size_t table_size = 0;
             for (BuildDirectoryContext * const cur_dir : m_tree->GetDirectories()) {
-                cur_dir->entry_offset = entry_offset;
-                entry_offset += EntrySize<DirectoryEntry>(cur_dir->name_len);
+                cur_dir->entry_offset = static_cast<u32>(table_size);
+                table_size += EntrySize<DirectoryEntry>(cur_dir->name_len);
+                ++num_dirs;
             }
             /* Assign deferred parent/sibling ownership. */
             for (BuildDirectoryContext * const cur_dir : m_tree->GetDirectories() | std::views::reverse) {
@@ -348,6 +345,10 @@ namespace ams::mitm::fs {
                 cur_dir->sibling = cur_dir->parent->child;
                 cur_dir->parent->child = cur_dir;
             }
+
+            AMS_ABORT_UNLESS(table_size <= MaxTableSize);
+            m_layout.dir_entry_size  = table_size;
+            m_layout.dir_bucket_size = GetBucketTableSize(ChooseBucketCount(num_dirs));
         }
 
         void Builder::DecoupleContexts() {

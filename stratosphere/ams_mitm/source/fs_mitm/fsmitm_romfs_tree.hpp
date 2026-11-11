@@ -189,10 +189,6 @@ namespace ams::mitm::fs::romfs {
             BuildDirectoryContext *m_root;
             ContextSet<AllocationType_DirContextSet, BuildDirectoryContext> m_directories;
             ContextSet<AllocationType_FileContextSet, BuildFileContext> m_files;
-            size_t m_num_dirs;
-            size_t m_num_files;
-            size_t m_dir_table_size;
-            size_t m_file_table_size;
         public:
             explicit LayeredTree(ncm::ProgramId program_id);
             ~LayeredTree();
@@ -201,11 +197,6 @@ namespace ams::mitm::fs::romfs {
             void AddFile(BuildDirectoryContext *parent_ctx, const char *name, size_t name_len, s64 size, s64 orig_offset, DataSourceType source_type);
 
             BuildDirectoryContext *GetRoot() const { return m_root; }
-
-            size_t GetDirectoryCount() const { return m_num_dirs; }
-            size_t GetFileCount() const { return m_num_files; }
-            size_t GetDirectoryTableSize() const { return m_dir_table_size; }
-            size_t GetFileTableSize() const { return m_file_table_size; }
 
             auto GetDirectories() { return MakeView<BuildDirectoryContext>(m_directories); }
             auto GetFiles() { return MakeView<BuildFileContext>(m_files); }

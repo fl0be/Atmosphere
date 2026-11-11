@@ -23,14 +23,12 @@ namespace ams::mitm::fs {
 
     namespace romfs {
 
-        LayeredTree::LayeredTree(ncm::ProgramId program_id) : m_num_dirs(0), m_num_files(0), m_dir_table_size(0), m_file_table_size(0) {
+        LayeredTree::LayeredTree(ncm::ProgramId program_id) {
             util::ConstructAt(m_heap_lock, program_id);
 
             const auto res = m_directories.emplace(std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>("", 0, nullptr)));
             AMS_ABORT_UNLESS(res.second);
             m_root = res.first->get();
-            m_num_dirs = 1;
-            m_dir_table_size = EntrySize<DirectoryEntry>(0);
         }
 
         LayeredTree::~LayeredTree() {
@@ -47,9 +45,6 @@ namespace ams::mitm::fs {
             }
 
             /* Add a new directory. */
-            m_num_dirs++;
-            m_dir_table_size += EntrySize<DirectoryEntry>(child_ctx->name_len);
-
             BuildDirectoryContext * const added = child_ctx.get();
             m_directories.emplace(std::move(child_ctx));
             return added;
@@ -64,8 +59,6 @@ namespace ams::mitm::fs {
             }
 
             /* Add a new file. */
-            m_num_files++;
-            m_file_table_size += EntrySize<FileEntry>(file_ctx->name_len);
             m_files.emplace(std::move(file_ctx));
         }
 
