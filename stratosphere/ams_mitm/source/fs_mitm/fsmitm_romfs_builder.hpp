@@ -24,9 +24,6 @@ namespace ams::mitm::fs::romfs {
     class LayeredTree;
     class MetadataFile;
 
-    void AddSdFiles(LayeredTree *tree, ncm::ProgramId program_id);
-    void AddStorageFiles(LayeredTree *tree, ams::fs::IStorage *storage, DataSourceType source_type);
-
     void Build(LayeredTree *tree, SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata);
 
 }

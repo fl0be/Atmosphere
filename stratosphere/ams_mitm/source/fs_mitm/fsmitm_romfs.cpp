@@ -18,6 +18,7 @@
 #include "fsmitm_romfs.hpp"
 #include "fsmitm_romfs_tree.hpp"
 #include "fsmitm_romfs_builder.hpp"
+#include "fsmitm_romfs_walk.hpp"
 
 namespace ams::mitm::fs {
 
