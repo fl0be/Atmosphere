@@ -117,4 +117,25 @@ namespace ams::mitm::fs::romfs {
         return table_size / sizeof(u32);
     }
 
+    constexpr inline size_t ChooseBucketCount(size_t num_entries) {
+        if (num_entries < 3) {
+            return 3;
+        } else if (num_entries < 19) {
+            return num_entries | 1;
+        } else {
+            size_t count = num_entries;
+            while ((count %  2 == 0) ||
+                   (count %  3 == 0) ||
+                   (count %  5 == 0) ||
+                   (count %  7 == 0) ||
+                   (count % 11 == 0) ||
+                   (count % 13 == 0) ||
+                   (count % 17 == 0))
+            {
+                count++;
+            }
+            return count;
+        }
+    }
+
 }
