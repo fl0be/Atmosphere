@@ -66,6 +66,48 @@ namespace ams::mitm::fs {
                 }
             }
 
+            struct PlacedFile {
+                DataSourceType type;
+                s64 size;
+                s64 orig_offset;
+                s64 offset;
+                bool starts_source;
+            };
+
+            class PartitionLayout {
+                private:
+                    s64 m_size;
+                    util::optional<DataSourceType> m_prev_type;
+                    s64 m_prev_offset;
+                    s64 m_prev_orig_offset;
+                public:
+                    PartitionLayout() : m_size(0), m_prev_type(), m_prev_offset(0), m_prev_orig_offset(0) { /* ... */ }
+
+                    s64 GetSize() const { return m_size; }
+
+                    void Place(PlacedFile *file) {
+                        m_size = AlignFileContent(m_size);
+
+                        /* Check if extra padding is present in original source, preserve it to make our life easier. */
+                        const bool is_storage_or_file = file->type == DataSourceType::Storage || file->type == DataSourceType::File;
+                        file->starts_source = !(m_prev_type == file->type && is_storage_or_file);
+                        if (!file->starts_source) {
+                            const s64 expected = m_size - m_prev_offset + m_prev_orig_offset;
+                            if (expected != file->orig_offset) {
+                                AMS_ABORT_UNLESS(expected <= file->orig_offset);
+                                m_size += file->orig_offset - expected;
+                            }
+                        }
+
+                        file->offset = m_size;
+                        m_size += file->size;
+
+                        m_prev_type        = file->type;
+                        m_prev_offset      = file->offset;
+                        m_prev_orig_offset = file->orig_offset;
+                    }
+            };
+
             class Builder {
                 NON_COPYABLE(Builder);
                 NON_MOVEABLE(Builder);
@@ -131,33 +173,19 @@ namespace ams::mitm::fs {
             size_t num_file_sources = 0;
             size_t num_files  = 0;
             size_t table_size = 0;
-            BuildFileContext *prev_file = nullptr;
+            PartitionLayout partition;
             for (BuildFileContext * const cur_file : m_tree->GetFiles()) {
-                /* By default, pad to 0x10 alignment. */
-                m_file_partition_size = AlignFileContent(m_file_partition_size);
-
-                /* Check if extra padding is present in original source, preserve it to make our life easier. */
-                const bool is_storage_or_file = cur_file->source_type == DataSourceType::Storage || cur_file->source_type == DataSourceType::File;
-                if (prev_file != nullptr && prev_file->source_type == cur_file->source_type && is_storage_or_file) {
-                    const s64 expected = m_file_partition_size - prev_file->offset + prev_file->orig_offset;
-                    if (expected != cur_file->orig_offset) {
-                        AMS_ABORT_UNLESS(expected <= cur_file->orig_offset);
-                        m_file_partition_size += cur_file->orig_offset - expected;
-                    }
-                } else {
-                    num_file_sources++;
-                }
+                PlacedFile placed = { .type = cur_file->source_type, .size = cur_file->size, .orig_offset = cur_file->orig_offset };
+                partition.Place(std::addressof(placed));
+                num_file_sources += placed.starts_source;
 
                 /* Calculate offsets. */
-                cur_file->offset = m_file_partition_size;
-                m_file_partition_size += cur_file->size;
+                cur_file->offset = placed.offset;
                 cur_file->entry_offset = static_cast<u32>(table_size);
                 table_size += EntrySize<FileEntry>(cur_file->name_len);
                 ++num_files;
-
-                /* Save current file as prev for next iteration. */
-                prev_file = cur_file;
             }
+            m_file_partition_size = partition.GetSize();
             /* Assign deferred parent/sibling ownership. */
             for (BuildFileContext * const cur_file : m_tree->GetFiles() | std::views::reverse) {
                 cur_file->sibling = cur_file->parent->file;
