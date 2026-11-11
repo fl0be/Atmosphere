@@ -158,22 +158,12 @@ namespace ams::mitm::fs::romfs {
         private:
             template<typename T>
             struct Comparator {
-                static constexpr inline int Compare(const char *a, const char *b) {
-                    unsigned char c1{}, c2{};
-                    while ((c1 = *a++) == (c2 = *b++)) {
-                        if (c1 == '\x00') {
-                            return 0;
-                        }
-                    }
-                    return (c1 - c2);
-                }
-
                 constexpr bool operator()(const std::unique_ptr<T> &lhs, const std::unique_ptr<T> &rhs) const {
                     char lhs_path[ams::fs::EntryNameLengthMax + 1];
                     char rhs_path[ams::fs::EntryNameLengthMax + 1];
-                    lhs->GetPath(lhs_path);
-                    rhs->GetPath(rhs_path);
-                    return Comparator::Compare(lhs_path, rhs_path) < 0;
+                    const size_t lhs_len = lhs->GetPath(lhs_path);
+                    const size_t rhs_len = rhs->GetPath(rhs_path);
+                    return CompareNames(lhs_path, lhs_len, rhs_path, rhs_len) < 0;
                 }
             };
 

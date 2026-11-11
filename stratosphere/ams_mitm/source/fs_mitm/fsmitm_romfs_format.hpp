@@ -138,4 +138,15 @@ namespace ams::mitm::fs::romfs {
         }
     }
 
+    ALWAYS_INLINE int CompareNames(const char *a, size_t a_len, const char *b, size_t b_len) {
+        const size_t common = std::min(a_len, b_len);
+        if (const int diff = std::memcmp(a, b, common); diff != 0) {
+            return diff;
+        }
+        if (a_len != b_len) {
+            return (a_len < b_len) ? -1 : 1;
+        }
+        return 0;
+    }
+
 }
