@@ -108,31 +108,171 @@ namespace ams::mitm::fs {
                     }
             };
 
-            class Builder {
-                NON_COPYABLE(Builder);
-                NON_MOVEABLE(Builder);
-                private:
-                    LayeredTree * const m_tree;
-                    MetadataLayout m_layout;
-                    size_t m_file_partition_size;
-                public:
-                    explicit Builder(LayeredTree *tree);
+            size_t PlaceFiles(LayeredTree *tree, MetadataLayout *layout, s64 *out_partition_size) {
+                /* Process Files. */
+                size_t num_file_sources = 0;
+                size_t num_files  = 0;
+                size_t table_size = 0;
+                PartitionLayout partition;
+                for (BuildFileContext * const cur_file : tree->GetFiles()) {
+                    PlacedFile placed = { .type = cur_file->source_type, .size = cur_file->size, .orig_offset = cur_file->orig_offset };
+                    partition.Place(std::addressof(placed));
+                    num_file_sources += placed.starts_source;
 
-                    void Build(SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata);
-                private:
-                    size_t PlaceFiles();
-                    void PlaceDirectories();
-                    void DecoupleContexts();
-                    void WriteFileTable(SourceInfoChunks *out_infos, MetadataWriter *writer);
-                    void WriteDirectoryTable(MetadataWriter *writer);
-                    void FillHeader(Header *header) const;
-            };
+                    /* Calculate offsets. */
+                    cur_file->offset = placed.offset;
+                    cur_file->entry_offset = static_cast<u32>(table_size);
+                    table_size += EntrySize<FileEntry>(cur_file->name_len);
+                    ++num_files;
+                }
+                *out_partition_size = partition.GetSize();
+                /* Assign deferred parent/sibling ownership. */
+                for (BuildFileContext * const cur_file : tree->GetFiles() | std::views::reverse) {
+                    cur_file->sibling = cur_file->parent->file;
+                    cur_file->parent->file = cur_file;
+                }
+
+                AMS_ABORT_UNLESS(table_size <= MaxTableSize);
+                layout->file_entry_size  = table_size;
+                layout->file_bucket_size = GetBucketTableSize(ChooseBucketCount(num_files));
+                return num_file_sources;
+            }
+
+            void PlaceDirectories(LayeredTree *tree, MetadataLayout *layout) {
+                size_t num_dirs   = 0;
+                size_t table_size = 0;
+                for (BuildDirectoryContext * const cur_dir : tree->GetDirectories()) {
+                    cur_dir->entry_offset = static_cast<u32>(table_size);
+                    table_size += EntrySize<DirectoryEntry>(cur_dir->name_len);
+                    ++num_dirs;
+                }
+                /* Assign deferred parent/sibling ownership. */
+                for (BuildDirectoryContext * const cur_dir : tree->GetDirectories() | std::views::reverse) {
+                    if (cur_dir == tree->GetRoot()) {
+                        continue;
+                    }
+                    cur_dir->sibling = cur_dir->parent->child;
+                    cur_dir->parent->child = cur_dir;
+                }
+
+                AMS_ABORT_UNLESS(table_size <= MaxTableSize);
+                layout->dir_entry_size  = table_size;
+                layout->dir_bucket_size = GetBucketTableSize(ChooseBucketCount(num_dirs));
+            }
+
+            void DecoupleContexts(LayeredTree *tree) {
+                /* Replace sibling pointers with sibling entry_offsets, so that we can de-allocate as we go. */
+                /* Set all directories sibling and file pointers. */
+                for (BuildDirectoryContext * const cur_dir : tree->GetDirectories()) {
+                    cur_dir->ClearHashMark();
+
+                    cur_dir->sibling_offset = (cur_dir->sibling == nullptr) ? EmptyEntry : cur_dir->sibling->entry_offset;
+                    cur_dir->child_offset   = (cur_dir->child   == nullptr) ? EmptyEntry : cur_dir->child->entry_offset;
+                    cur_dir->file_offset    = (cur_dir->file    == nullptr) ? EmptyEntry : cur_dir->file->entry_offset;
+
+                    cur_dir->parent_offset  = cur_dir == tree->GetRoot() ? RootEntryOffset : cur_dir->parent->entry_offset;
+                }
+
+                /* Replace all files' sibling pointers. */
+                for (BuildFileContext * const cur_file : tree->GetFiles()) {
+                    cur_file->ClearHashMark();
+
+                    cur_file->sibling_offset = (cur_file->sibling == nullptr) ? EmptyEntry : cur_file->sibling->entry_offset;
+                }
+            }
+
+            void WriteFileTable(LayeredTree *tree, SourceInfoChunks *out_infos, MetadataWriter *writer) {
+                const BuildDirectoryContext *loose_parent = nullptr;
+                const LooseDirectory *loose_dir = nullptr;
+                while (BuildFileContext * const cur_file = tree->GetFrontFile()) {
+                    FileEntry * const cur_entry = writer->AppendFileEntry(cur_file->name_len);
+
+                    /* Set entry fields. */
+                    cur_entry->parent  = cur_file->parent->entry_offset;
+                    cur_entry->sibling = cur_file->sibling_offset;
+                    cur_entry->offset  = cur_file->offset;
+                    cur_entry->size    = cur_file->size;
+                    cur_entry->hash    = cur_file->hash_value;
+
+                    /* Set name. */
+                    SetEntryName(cur_entry, cur_file->name, cur_file->name_len);
+
+                    /* Emplace a source. */
+                    switch (cur_file->source_type) {
+                        case DataSourceType::Storage:
+                        case DataSourceType::File:
+                            {
+                                /* Try to compact if possible. */
+                                if (out_infos->Back().source_type == cur_file->source_type) {
+                                    out_infos->ExtendBackTo(cur_file->offset + FilePartitionOffset + cur_file->size);
+                                } else {
+                                    out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, cur_file->orig_offset);
+                                }
+                            }
+                            break;
+                        case DataSourceType::LooseSdFile:
+                            {
+                                if (cur_file->parent != loose_parent) {
+                                    char dir_path[fs::EntryNameLengthMax + 1];
+                                    AMS_ABORT_UNLESS(cur_file->parent->GetPathLength() <= fs::EntryNameLengthMax);
+                                    const size_t dir_len = cur_file->parent->GetPath(dir_path);
+
+                                    loose_dir    = out_infos->GetLoosePathBlocks().AddDirectory(dir_path, dir_len);
+                                    loose_parent = cur_file->parent;
+                                }
+                                AMS_ABORT_UNLESS(GetChildPathLength(loose_dir->path_len, cur_file->name_len) <= fs::EntryNameLengthMax);
+
+                                LoosePath * const path = out_infos->GetLoosePathBlocks().AddFile(loose_dir, cur_file->name, cur_file->name_len);
+                                out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, path);
+                            }
+                            break;
+                        AMS_UNREACHABLE_DEFAULT_CASE();
+                    }
+
+                    tree->RemoveFrontFile();
+                }
+
+                writer->FinishFileTable();
+            }
+
+            void WriteDirectoryTable(LayeredTree *tree, MetadataWriter *writer) {
+                while (BuildDirectoryContext * const cur_dir = tree->GetFrontDirectory()) {
+                    DirectoryEntry * const cur_entry = writer->AppendDirectoryEntry(cur_dir->name_len);
+
+                    /* Set entry fields. */
+                    cur_entry->parent  = cur_dir->parent_offset;
+                    cur_entry->sibling = cur_dir->sibling_offset;
+                    cur_entry->child   = cur_dir->child_offset;
+                    cur_entry->file    = cur_dir->file_offset;
+                    cur_entry->hash    = cur_dir->hash_value;
+
+                    /* Set name. */
+                    SetEntryName(cur_entry, cur_dir->name, cur_dir->name_len);
+
+                    tree->RemoveFrontDirectory();
+                }
+
+                writer->FinishDirectoryTable();
+            }
+
+            void FillHeader(Header *header, const MetadataLayout &layout, s64 file_partition_size) {
+                header->size                    = sizeof(*header);
+                header->file_bucket_size        = layout.file_bucket_size;
+                header->file_entry_size         = layout.file_entry_size;
+                header->directory_bucket_size   = layout.dir_bucket_size;
+                header->directory_entry_size    = layout.dir_entry_size;
+                header->body_offset             = FilePartitionOffset;
+
+                const s64 metadata_begin        = AlignMetadataOffset(FilePartitionOffset + file_partition_size);
+                header->directory_bucket_offset = metadata_begin + layout.DirBucketOffset();
+                header->directory_entry_offset  = metadata_begin + layout.DirEntryOffset();
+                header->file_bucket_offset      = metadata_begin + layout.FileBucketOffset();
+                header->file_entry_offset       = metadata_begin + layout.FileEntryOffset();
+            }
 
         }
 
-        Builder::Builder(LayeredTree *tree) : m_tree(tree), m_layout{}, m_file_partition_size(0) { /* ... */ }
-
-        void Builder::Build(SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata) {
+        void Build(LayeredTree *tree, SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata) {
             /* Open an SD card filesystem. */
             FsFileSystem sd_filesystem;
             R_ABORT_UNLESS(fsOpenSdCardFileSystem(std::addressof(sd_filesystem)));
@@ -140,199 +280,34 @@ namespace ams::mitm::fs {
 
             std::memset(header, 0x00, sizeof(*header));
 
-            const size_t num_file_sources = this->PlaceFiles();
-            this->PlaceDirectories();
+            MetadataLayout layout = {};
+            s64 file_partition_size = 0;
+            const size_t num_file_sources = PlaceFiles(tree, std::addressof(layout), std::addressof(file_partition_size));
+            PlaceDirectories(tree, std::addressof(layout));
 
             /* Open metadata file. */
             MetadataWriter writer(metadata);
-            writer.Create(m_layout);
+            writer.Create(layout);
 
             out_infos->Initialize(HeaderSources + num_file_sources + MetadataSources);
 
             /* Emplace metadata source info. */
             out_infos->EmplaceBack(0, sizeof(*header), DataSourceType::Memory, header);
 
-            WriteBuckets(std::addressof(writer), &MetadataWriter::AppendFileBuckets,      m_tree->GetFiles(),       m_layout.file_bucket_size);
-            WriteBuckets(std::addressof(writer), &MetadataWriter::AppendDirectoryBuckets, m_tree->GetDirectories(), m_layout.dir_bucket_size);
+            WriteBuckets(std::addressof(writer), &MetadataWriter::AppendFileBuckets,      tree->GetFiles(),       layout.file_bucket_size);
+            WriteBuckets(std::addressof(writer), &MetadataWriter::AppendDirectoryBuckets, tree->GetDirectories(), layout.dir_bucket_size);
 
-            this->DecoupleContexts();
-            this->WriteFileTable(out_infos, std::addressof(writer));
-            this->WriteDirectoryTable(std::addressof(writer));
+            DecoupleContexts(tree);
+            WriteFileTable(tree, out_infos, std::addressof(writer));
+            WriteDirectoryTable(tree, std::addressof(writer));
 
-            this->FillHeader(header);
+            FillHeader(header, layout, file_partition_size);
 
             /* Save metadata to the SD card, to save on memory space. */
             {
                 writer.Finish();
-                out_infos->EmplaceBack(header->directory_bucket_offset, m_layout.TotalSize(), DataSourceType::Metadata, metadata);
+                out_infos->EmplaceBack(header->directory_bucket_offset, layout.TotalSize(), DataSourceType::Metadata, metadata);
             }
-        }
-
-        size_t Builder::PlaceFiles() {
-            /* Process Files. */
-            size_t num_file_sources = 0;
-            size_t num_files  = 0;
-            size_t table_size = 0;
-            PartitionLayout partition;
-            for (BuildFileContext * const cur_file : m_tree->GetFiles()) {
-                PlacedFile placed = { .type = cur_file->source_type, .size = cur_file->size, .orig_offset = cur_file->orig_offset };
-                partition.Place(std::addressof(placed));
-                num_file_sources += placed.starts_source;
-
-                /* Calculate offsets. */
-                cur_file->offset = placed.offset;
-                cur_file->entry_offset = static_cast<u32>(table_size);
-                table_size += EntrySize<FileEntry>(cur_file->name_len);
-                ++num_files;
-            }
-            m_file_partition_size = partition.GetSize();
-            /* Assign deferred parent/sibling ownership. */
-            for (BuildFileContext * const cur_file : m_tree->GetFiles() | std::views::reverse) {
-                cur_file->sibling = cur_file->parent->file;
-                cur_file->parent->file = cur_file;
-            }
-
-            AMS_ABORT_UNLESS(table_size <= MaxTableSize);
-            m_layout.file_entry_size  = table_size;
-            m_layout.file_bucket_size = GetBucketTableSize(ChooseBucketCount(num_files));
-            return num_file_sources;
-        }
-
-        void Builder::PlaceDirectories() {
-            size_t num_dirs   = 0;
-            size_t table_size = 0;
-            for (BuildDirectoryContext * const cur_dir : m_tree->GetDirectories()) {
-                cur_dir->entry_offset = static_cast<u32>(table_size);
-                table_size += EntrySize<DirectoryEntry>(cur_dir->name_len);
-                ++num_dirs;
-            }
-            /* Assign deferred parent/sibling ownership. */
-            for (BuildDirectoryContext * const cur_dir : m_tree->GetDirectories() | std::views::reverse) {
-                if (cur_dir == m_tree->GetRoot()) {
-                    continue;
-                }
-                cur_dir->sibling = cur_dir->parent->child;
-                cur_dir->parent->child = cur_dir;
-            }
-
-            AMS_ABORT_UNLESS(table_size <= MaxTableSize);
-            m_layout.dir_entry_size  = table_size;
-            m_layout.dir_bucket_size = GetBucketTableSize(ChooseBucketCount(num_dirs));
-        }
-
-        void Builder::DecoupleContexts() {
-            /* Replace sibling pointers with sibling entry_offsets, so that we can de-allocate as we go. */
-            /* Set all directories sibling and file pointers. */
-            for (BuildDirectoryContext * const cur_dir : m_tree->GetDirectories()) {
-                cur_dir->ClearHashMark();
-
-                cur_dir->sibling_offset = (cur_dir->sibling == nullptr) ? EmptyEntry : cur_dir->sibling->entry_offset;
-                cur_dir->child_offset   = (cur_dir->child   == nullptr) ? EmptyEntry : cur_dir->child->entry_offset;
-                cur_dir->file_offset    = (cur_dir->file    == nullptr) ? EmptyEntry : cur_dir->file->entry_offset;
-
-                cur_dir->parent_offset  = cur_dir == m_tree->GetRoot() ? RootEntryOffset : cur_dir->parent->entry_offset;
-            }
-
-            /* Replace all files' sibling pointers. */
-            for (BuildFileContext * const cur_file : m_tree->GetFiles()) {
-                cur_file->ClearHashMark();
-
-                cur_file->sibling_offset = (cur_file->sibling == nullptr) ? EmptyEntry : cur_file->sibling->entry_offset;
-            }
-        }
-
-        void Builder::WriteFileTable(SourceInfoChunks *out_infos, MetadataWriter *writer) {
-            const BuildDirectoryContext *loose_parent = nullptr;
-            const LooseDirectory *loose_dir = nullptr;
-            while (BuildFileContext * const cur_file = m_tree->GetFrontFile()) {
-                FileEntry * const cur_entry = writer->AppendFileEntry(cur_file->name_len);
-
-                /* Set entry fields. */
-                cur_entry->parent  = cur_file->parent->entry_offset;
-                cur_entry->sibling = cur_file->sibling_offset;
-                cur_entry->offset  = cur_file->offset;
-                cur_entry->size    = cur_file->size;
-                cur_entry->hash    = cur_file->hash_value;
-
-                /* Set name. */
-                SetEntryName(cur_entry, cur_file->name, cur_file->name_len);
-
-                /* Emplace a source. */
-                switch (cur_file->source_type) {
-                    case DataSourceType::Storage:
-                    case DataSourceType::File:
-                        {
-                            /* Try to compact if possible. */
-                            if (out_infos->Back().source_type == cur_file->source_type) {
-                                out_infos->ExtendBackTo(cur_file->offset + FilePartitionOffset + cur_file->size);
-                            } else {
-                                out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, cur_file->orig_offset);
-                            }
-                        }
-                        break;
-                    case DataSourceType::LooseSdFile:
-                        {
-                            if (cur_file->parent != loose_parent) {
-                                char dir_path[fs::EntryNameLengthMax + 1];
-                                AMS_ABORT_UNLESS(cur_file->parent->GetPathLength() <= fs::EntryNameLengthMax);
-                                const size_t dir_len = cur_file->parent->GetPath(dir_path);
-
-                                loose_dir    = out_infos->GetLoosePathBlocks().AddDirectory(dir_path, dir_len);
-                                loose_parent = cur_file->parent;
-                            }
-                            AMS_ABORT_UNLESS(GetChildPathLength(loose_dir->path_len, cur_file->name_len) <= fs::EntryNameLengthMax);
-
-                            LoosePath * const path = out_infos->GetLoosePathBlocks().AddFile(loose_dir, cur_file->name, cur_file->name_len);
-                            out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, path);
-                        }
-                        break;
-                    AMS_UNREACHABLE_DEFAULT_CASE();
-                }
-
-                m_tree->RemoveFrontFile();
-            }
-
-            writer->FinishFileTable();
-        }
-
-        void Builder::WriteDirectoryTable(MetadataWriter *writer) {
-            while (BuildDirectoryContext * const cur_dir = m_tree->GetFrontDirectory()) {
-                DirectoryEntry * const cur_entry = writer->AppendDirectoryEntry(cur_dir->name_len);
-
-                /* Set entry fields. */
-                cur_entry->parent  = cur_dir->parent_offset;
-                cur_entry->sibling = cur_dir->sibling_offset;
-                cur_entry->child   = cur_dir->child_offset;
-                cur_entry->file    = cur_dir->file_offset;
-                cur_entry->hash    = cur_dir->hash_value;
-
-                /* Set name. */
-                SetEntryName(cur_entry, cur_dir->name, cur_dir->name_len);
-
-                m_tree->RemoveFrontDirectory();
-            }
-
-            writer->FinishDirectoryTable();
-        }
-
-        void Builder::FillHeader(Header *header) const {
-            header->size                    = sizeof(*header);
-            header->file_bucket_size        = m_layout.file_bucket_size;
-            header->file_entry_size         = m_layout.file_entry_size;
-            header->directory_bucket_size   = m_layout.dir_bucket_size;
-            header->directory_entry_size    = m_layout.dir_entry_size;
-            header->body_offset             = FilePartitionOffset;
-
-            const s64 metadata_begin        = AlignMetadataOffset(FilePartitionOffset + m_file_partition_size);
-            header->directory_bucket_offset = metadata_begin + m_layout.DirBucketOffset();
-            header->directory_entry_offset  = metadata_begin + m_layout.DirEntryOffset();
-            header->file_bucket_offset      = metadata_begin + m_layout.FileBucketOffset();
-            header->file_entry_offset       = metadata_begin + m_layout.FileEntryOffset();
-        }
-
-        void Build(LayeredTree *tree, SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata) {
-            Builder builder(tree);
-            builder.Build(out_infos, header, metadata);
         }
 
     }
