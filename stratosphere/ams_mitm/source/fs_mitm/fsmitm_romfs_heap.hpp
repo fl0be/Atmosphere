@@ -33,13 +33,8 @@ namespace ams::mitm::fs::romfs {
         AllocationType_Count,
     };
 
-    class ScopedHeapLock {
-        NON_COPYABLE(ScopedHeapLock);
-        NON_MOVEABLE(ScopedHeapLock);
-        public:
-            explicit ScopedHeapLock(ncm::ProgramId program_id);
-            ~ScopedHeapLock();
-    };
+    void AcquireRomfsHeap(ncm::ProgramId program_id);
+    void ReleaseRomfsHeap();
 
     void *AllocateTrackedImpl(AllocationType type, size_t size);
 

@@ -284,7 +284,7 @@ namespace ams::mitm::fs {
 
         }
 
-        ScopedHeapLock::ScopedHeapLock(ncm::ProgramId program_id) {
+        void AcquireRomfsHeap(ncm::ProgramId program_id) {
             /* Ensure only one romfs is built at any time. */
             g_romfs_build_lock.Lock();
 
@@ -292,7 +292,9 @@ namespace ams::mitm::fs {
             InitializeDynamicHeapForBuildRomfs(program_id);
         }
 
-        ScopedHeapLock::~ScopedHeapLock() {
+        void ReleaseRomfsHeap() {
+            AMS_ABORT_UNLESS(g_romfs_build_lock.IsLockedByCurrentThread());
+
             /* If we have nothing remaining in dynamic heap, release it. */
             FinalizeDynamicHeapForBuildRomfs();
 

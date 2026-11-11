@@ -185,7 +185,6 @@ namespace ams::mitm::fs::romfs {
                 return set | std::views::transform([](const auto &ctx) -> Context * { return ctx.get(); });
             }
         private:
-            util::TypedStorage<ScopedHeapLock> m_heap_lock;
             BuildDirectoryContext *m_root;
             ContextSet<AllocationType_DirContextSet, BuildDirectoryContext> m_directories;
             ContextSet<AllocationType_FileContextSet, BuildFileContext> m_files;

@@ -24,7 +24,7 @@ namespace ams::mitm::fs {
     namespace romfs {
 
         LayeredTree::LayeredTree(ncm::ProgramId program_id) {
-            util::ConstructAt(m_heap_lock, program_id);
+            AcquireRomfsHeap(program_id);
 
             const auto res = m_directories.emplace(std::unique_ptr<BuildDirectoryContext>(CreateContext<BuildDirectoryContext>("", 0, nullptr)));
             AMS_ABORT_UNLESS(res.second);
@@ -32,7 +32,7 @@ namespace ams::mitm::fs {
         }
 
         LayeredTree::~LayeredTree() {
-            util::DestroyAt(m_heap_lock);
+            ReleaseRomfsHeap();
         }
 
         BuildDirectoryContext *LayeredTree::AddDirectory(BuildDirectoryContext *parent_ctx, const char *name, size_t name_len) {
