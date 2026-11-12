@@ -88,6 +88,18 @@ namespace ams::mitm::fs::romfs {
 
             return AppendChildPart(dst, this->parent->GetPath(dst), this->name, this->name_len);
         }
+
+        bool HasHashMark() const {
+            return reinterpret_cast<uintptr_t>(this->sibling) & UINT64_C(0x8000000000000000);
+        }
+
+        void SetHashMark() {
+            this->sibling = reinterpret_cast<BuildDirectoryContext *>(reinterpret_cast<uintptr_t>(this->sibling) | UINT64_C(0x8000000000000000));
+        }
+
+        void ClearHashMark() {
+            this->sibling = reinterpret_cast<BuildDirectoryContext *>(reinterpret_cast<uintptr_t>(this->sibling) & ~UINT64_C(0x8000000000000000));
+        }
     };
 
     struct BuildFileContext {

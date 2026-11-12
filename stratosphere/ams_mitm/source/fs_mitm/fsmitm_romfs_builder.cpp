@@ -66,21 +66,6 @@ namespace ams::mitm::fs {
                 }
             }
 
-            void WriteDirectoryBuckets(MetadataWriter *writer, LayeredTree *tree, size_t bucket_size) {
-                const size_t num_buckets = GetBucketCount(bucket_size);
-                u32 * const buckets = AllocateTracked<u32>(AllocationType_TableCache, bucket_size);
-                ON_SCOPE_EXIT { FreeTracked(AllocationType_TableCache, buckets, bucket_size); };
-                std::fill_n(buckets, num_buckets, EmptyEntry);
-
-                for (BuildDirectoryContext * const cur_dir : tree->GetDirectories()) {
-                    const u32 bucket = GetBucketIndex(cur_dir->parent == nullptr ? RootEntryOffset : cur_dir->parent->entry_offset, cur_dir->name, cur_dir->name_len, num_buckets);
-                    cur_dir->hash_value = buckets[bucket];
-                    buckets[bucket]     = cur_dir->entry_offset;
-                }
-
-                writer->AppendDirectoryBuckets(buckets, bucket_size);
-            }
-
             struct PlacedFile {
                 DataSourceType type;
                 s64 size;
@@ -179,6 +164,8 @@ namespace ams::mitm::fs {
                 /* Replace sibling pointers with sibling entry_offsets, so that we can de-allocate as we go. */
                 /* Set all directories sibling and file pointers. */
                 for (BuildDirectoryContext * const cur_dir : tree->GetDirectories()) {
+                    cur_dir->ClearHashMark();
+
                     cur_dir->sibling_offset = (cur_dir->sibling == nullptr) ? EmptyEntry : cur_dir->sibling->entry_offset;
                     cur_dir->child_offset   = (cur_dir->child   == nullptr) ? EmptyEntry : cur_dir->child->entry_offset;
                     cur_dir->file_offset    = (cur_dir->file    == nullptr) ? EmptyEntry : cur_dir->file->entry_offset;
@@ -308,7 +295,7 @@ namespace ams::mitm::fs {
             out_infos->EmplaceBack(0, sizeof(*header), DataSourceType::Memory, header);
 
             WriteBuckets(std::addressof(writer), &MetadataWriter::AppendFileBuckets,      tree->GetFiles(),       layout.file_bucket_size);
-            WriteDirectoryBuckets(std::addressof(writer), tree, layout.dir_bucket_size);
+            WriteBuckets(std::addressof(writer), &MetadataWriter::AppendDirectoryBuckets, tree->GetDirectories(), layout.dir_bucket_size);
 
             DecoupleContexts(tree);
             WriteFileTable(tree, out_infos, std::addressof(writer));
