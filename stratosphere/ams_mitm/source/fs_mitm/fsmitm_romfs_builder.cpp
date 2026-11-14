@@ -145,14 +145,16 @@ namespace ams::mitm::fs {
                     cur_dir->entry_offset = static_cast<u32>(table_size);
                     table_size += EntrySize<DirectoryEntry>(cur_dir->name_len);
                     ++num_dirs;
-                }
-                /* Assign deferred parent/sibling ownership. */
-                for (BuildDirectoryContext * const cur_dir : tree->GetDirectories() | std::views::reverse) {
-                    if (cur_dir == tree->GetRoot()) {
-                        continue;
+
+                    if (cur_dir->parent != nullptr) {
+                        BuildDirectoryContext * const parent = cur_dir->parent;
+                        if (parent->child != nullptr) {
+                            parent->child->sibling_entry_offset = cur_dir->entry_offset;
+                        } else {
+                            parent->child_entry_offset = cur_dir->entry_offset;
+                        }
+                        parent->child = cur_dir;
                     }
-                    cur_dir->sibling = cur_dir->parent->child;
-                    cur_dir->parent->child = cur_dir;
                 }
 
                 AMS_ABORT_UNLESS(table_size <= MaxTableSize);
@@ -162,10 +164,8 @@ namespace ams::mitm::fs {
 
             void DecoupleContexts(LayeredTree *tree) {
                 /* Replace sibling pointers with sibling entry_offsets, so that we can de-allocate as we go. */
-                /* Set all directories sibling and file pointers. */
+                /* Set all directories file offsets. */
                 for (BuildDirectoryContext * const cur_dir : tree->GetDirectories()) {
-                    cur_dir->sibling_offset = (cur_dir->sibling == nullptr) ? EmptyEntry : cur_dir->sibling->entry_offset;
-                    cur_dir->child_offset   = (cur_dir->child   == nullptr) ? EmptyEntry : cur_dir->child->entry_offset;
                     cur_dir->file_offset    = (cur_dir->file    == nullptr) ? EmptyEntry : cur_dir->file->entry_offset;
                 }
 
@@ -240,8 +240,8 @@ namespace ams::mitm::fs {
 
                     /* Set entry fields. */
                     cur_entry->parent  = parent_offset;
-                    cur_entry->sibling = cur_dir->sibling_offset;
-                    cur_entry->child   = cur_dir->child_offset;
+                    cur_entry->sibling = cur_dir->sibling_entry_offset;
+                    cur_entry->child   = cur_dir->child_entry_offset;
                     cur_entry->file    = cur_dir->file_offset;
                     buckets.ChainEntry(cur_entry, cur_dir->entry_offset, parent_offset, cur_dir->name, cur_dir->name_len);
 
