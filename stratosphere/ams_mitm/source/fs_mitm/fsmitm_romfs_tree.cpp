@@ -32,6 +32,7 @@ namespace ams::mitm::fs {
         }
 
         LayeredTree::~LayeredTree() {
+            m_directories.clear();
             ReleaseRomfsHeap();
         }
 

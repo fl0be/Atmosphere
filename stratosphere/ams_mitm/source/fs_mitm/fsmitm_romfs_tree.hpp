@@ -46,10 +46,7 @@ namespace ams::mitm::fs::romfs {
         BuildDirectoryContext * const parent;
         union {
             BuildDirectoryContext *child;
-            struct {
-                u32 parent_offset;
-                u32 child_offset;
-            };
+            u32 child_offset;
         };
         union {
             BuildDirectoryContext *sibling;
@@ -174,19 +171,10 @@ namespace ams::mitm::fs::romfs {
 
             BuildDirectoryContext *GetRoot() const { return m_root; }
 
-            auto GetDirectories() { return MakeView<BuildDirectoryContext>(m_directories); }
+            auto GetDirectories() const { return MakeView<BuildDirectoryContext>(m_directories); }
             auto GetFiles() { return MakeView<BuildFileContext>(m_files); }
 
-            BuildDirectoryContext *GetFrontDirectory() { return m_directories.empty() ? nullptr : m_directories.begin()->get(); }
             BuildFileContext *GetFrontFile() { return m_files.empty() ? nullptr : m_files.begin()->get(); }
-
-            void RemoveFrontDirectory() {
-                AMS_ABORT_UNLESS(!m_directories.empty());
-                if (m_directories.begin()->get() == m_root) {
-                    m_root = nullptr;
-                }
-                m_directories.erase(m_directories.begin());
-            }
 
             void RemoveFrontFile() {
                 AMS_ABORT_UNLESS(!m_files.empty());

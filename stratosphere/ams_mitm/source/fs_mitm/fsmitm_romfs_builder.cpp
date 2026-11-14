@@ -167,8 +167,6 @@ namespace ams::mitm::fs {
                     cur_dir->sibling_offset = (cur_dir->sibling == nullptr) ? EmptyEntry : cur_dir->sibling->entry_offset;
                     cur_dir->child_offset   = (cur_dir->child   == nullptr) ? EmptyEntry : cur_dir->child->entry_offset;
                     cur_dir->file_offset    = (cur_dir->file    == nullptr) ? EmptyEntry : cur_dir->file->entry_offset;
-
-                    cur_dir->parent_offset  = cur_dir == tree->GetRoot() ? RootEntryOffset : cur_dir->parent->entry_offset;
                 }
 
                 /* Replace all files' sibling pointers. */
@@ -233,22 +231,22 @@ namespace ams::mitm::fs {
                 writer->FinishFileTable();
             }
 
-            void WriteDirectoryTable(LayeredTree *tree, MetadataWriter *writer, const MetadataLayout &layout) {
+            void WriteDirectoryTable(const LayeredTree &tree, MetadataWriter *writer, const MetadataLayout &layout) {
                 BucketTable buckets(AllocationType_TableCache, GetBucketCount(layout.dir_bucket_size));
-                while (BuildDirectoryContext * const cur_dir = tree->GetFrontDirectory()) {
+                for (const BuildDirectoryContext * const cur_dir : tree.GetDirectories()) {
                     DirectoryEntry * const cur_entry = writer->AppendDirectoryEntry(cur_dir->name_len);
 
+                    const u32 parent_offset = (cur_dir->parent != nullptr) ? cur_dir->parent->entry_offset : RootEntryOffset;
+
                     /* Set entry fields. */
-                    cur_entry->parent  = cur_dir->parent_offset;
+                    cur_entry->parent  = parent_offset;
                     cur_entry->sibling = cur_dir->sibling_offset;
                     cur_entry->child   = cur_dir->child_offset;
                     cur_entry->file    = cur_dir->file_offset;
-                    buckets.ChainEntry(cur_entry, cur_dir->entry_offset, cur_dir->parent_offset, cur_dir->name, cur_dir->name_len);
+                    buckets.ChainEntry(cur_entry, cur_dir->entry_offset, parent_offset, cur_dir->name, cur_dir->name_len);
 
                     /* Set name. */
                     SetEntryName(cur_entry, cur_dir->name, cur_dir->name_len);
-
-                    tree->RemoveFrontDirectory();
                 }
 
                 writer->WriteDirectoryBuckets(buckets);
@@ -297,7 +295,7 @@ namespace ams::mitm::fs {
 
             DecoupleContexts(tree);
             WriteFileTable(tree, out_infos, std::addressof(writer));
-            WriteDirectoryTable(tree, std::addressof(writer), layout);
+            WriteDirectoryTable(*tree, std::addressof(writer), layout);
 
             FillHeader(header, layout, file_partition_size);
 
