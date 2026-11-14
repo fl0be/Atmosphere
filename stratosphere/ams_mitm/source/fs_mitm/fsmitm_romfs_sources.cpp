@@ -29,9 +29,9 @@ namespace ams::mitm::fs {
             std::memcpy(dst + dir_len + 1, this->name, std::strlen(this->name) + 1);
         }
 
-        LoosePathBlocks::LoosePathBlocks() : m_blocks(nullptr), m_cursor(nullptr), m_left(0) { /* ... */ }
+        SourceInfoChunks::LoosePathBlocks::LoosePathBlocks() : m_blocks(nullptr), m_cursor(nullptr), m_left(0) { /* ... */ }
 
-        LoosePathBlocks::~LoosePathBlocks() {
+        SourceInfoChunks::LoosePathBlocks::~LoosePathBlocks() {
             while (m_blocks != nullptr) {
                 Block * const next = m_blocks->next;
                 FreeTracked(AllocationType_FullPath, m_blocks, m_blocks->size);
@@ -39,7 +39,7 @@ namespace ams::mitm::fs {
             }
         }
 
-        void LoosePathBlocks::AddBlock(size_t size) {
+        void SourceInfoChunks::LoosePathBlocks::AddBlock(size_t size) {
             const size_t next_size  = m_blocks != nullptr ? std::min(m_blocks->size * 2, MaxBlockSize) : FirstBlockSize;
             const size_t block_size = std::max(next_size, sizeof(Block) + size);
             Block * const block = AllocateTracked<Block>(AllocationType_FullPath, block_size);
@@ -51,7 +51,7 @@ namespace ams::mitm::fs {
             m_left   = block_size - sizeof(Block);
         }
 
-        void *LoosePathBlocks::Allocate(size_t size) {
+        void *SourceInfoChunks::LoosePathBlocks::Allocate(size_t size) {
             size = util::AlignUp(size, alignof(void *));
             if (size > m_left) {
                 this->AddBlock(size);

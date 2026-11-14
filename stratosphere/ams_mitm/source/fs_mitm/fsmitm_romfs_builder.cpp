@@ -215,12 +215,12 @@ namespace ams::mitm::fs {
                                     AMS_ABORT_UNLESS(cur_file->parent->GetPathLength() <= fs::EntryNameLengthMax);
                                     const size_t dir_len = cur_file->parent->GetPath(dir_path);
 
-                                    loose_dir    = out_infos->GetLoosePathBlocks().AddDirectory(dir_path, dir_len);
+                                    loose_dir    = out_infos->AddLooseDirectory(dir_path, dir_len);
                                     loose_parent = cur_file->parent;
                                 }
                                 AMS_ABORT_UNLESS(GetChildPathLength(loose_dir->path_len, cur_file->name_len) <= fs::EntryNameLengthMax);
 
-                                LoosePath * const path = out_infos->GetLoosePathBlocks().AddFile(loose_dir, cur_file->name, cur_file->name_len);
+                                const LoosePath * const path = out_infos->AddLooseFile(loose_dir, cur_file->name, cur_file->name_len);
                                 out_infos->EmplaceBack(cur_file->offset + FilePartitionOffset, cur_file->size, cur_file->source_type, path);
                             }
                             break;
