@@ -61,7 +61,7 @@ namespace ams::mitm::fs::romfs {
         private:
             MetadataFile * const m_file;
             MetadataLayout m_layout;
-            size_t m_dir_buckets_written;
+            bool m_dir_buckets_written;
             size_t m_file_buckets_written;
             util::optional<DirectoryTableWriter> m_dir_table;
             util::optional<FileTableWriter> m_file_table;
@@ -71,12 +71,11 @@ namespace ams::mitm::fs::romfs {
             void Create(const MetadataLayout &layout);
 
             DirectoryEntry *AppendDirectoryEntry(u32 name_len);
-            void FinishDirectoryTable();
+            void WriteDirectoryBuckets(const BucketTable &buckets);
 
             FileEntry *AppendFileEntry(u32 name_len);
             void FinishFileTable();
 
-            void AppendDirectoryBuckets(const void *src, size_t size);
             void AppendFileBuckets(const void *src, size_t size);
 
             void Finish();

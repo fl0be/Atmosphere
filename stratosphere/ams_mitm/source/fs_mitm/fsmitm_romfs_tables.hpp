@@ -169,6 +169,26 @@ namespace ams::mitm::fs::romfs {
             }
     };
 
+    class BucketTable {
+        NON_COPYABLE(BucketTable);
+        NON_MOVEABLE(BucketTable);
+        friend class MetadataWriter;
+        private:
+            TrackedBuffer<u32> m_buckets;
+        public:
+            BucketTable(AllocationType type, size_t count) : m_buckets(type, GetBucketTableSize(count)) {
+                std::fill_n(m_buckets.GetBuffer(), count, EmptyEntry);
+            }
+
+            template<typename Entry>
+            ALWAYS_INLINE void ChainEntry(Entry *entry, u32 entry_offset, u32 parent_offset, const char *name, size_t name_len) {
+                u32 * const buckets = m_buckets.GetBuffer();
+                const u32 bucket = GetBucketIndex(parent_offset, name, name_len, GetBucketCount(m_buckets.GetSize()));
+                entry->hash = buckets[bucket];
+                buckets[bucket] = entry_offset;
+            }
+    };
+
     using DirectoryTableWriter = TableWriter<DirectoryEntry>;
     using FileTableWriter      = TableWriter<FileEntry>;
 

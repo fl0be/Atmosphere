@@ -47,6 +47,22 @@ namespace ams::mitm::fs::romfs {
 
     void FreeTracked(AllocationType type, void *p, size_t size);
 
+    template<typename T>
+    class TrackedBuffer {
+        NON_COPYABLE(TrackedBuffer);
+        NON_MOVEABLE(TrackedBuffer);
+        private:
+            T * const m_buffer;
+            const AllocationType m_type;
+            const size_t m_size;
+        public:
+            TrackedBuffer(AllocationType type, size_t size) : m_buffer(AllocateTracked<T>(type, size)), m_type(type), m_size(size) { /* ... */ }
+            ~TrackedBuffer() { FreeTracked(m_type, m_buffer, m_size); }
+
+            T *GetBuffer() const { return m_buffer; }
+            size_t GetSize() const { return m_size; }
+    };
+
     template<AllocationType AllocType, typename T>
     class TrackedAllocator {
         public:

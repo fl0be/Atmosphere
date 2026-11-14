@@ -164,8 +164,6 @@ namespace ams::mitm::fs {
                 /* Replace sibling pointers with sibling entry_offsets, so that we can de-allocate as we go. */
                 /* Set all directories sibling and file pointers. */
                 for (BuildDirectoryContext * const cur_dir : tree->GetDirectories()) {
-                    cur_dir->ClearHashMark();
-
                     cur_dir->sibling_offset = (cur_dir->sibling == nullptr) ? EmptyEntry : cur_dir->sibling->entry_offset;
                     cur_dir->child_offset   = (cur_dir->child   == nullptr) ? EmptyEntry : cur_dir->child->entry_offset;
                     cur_dir->file_offset    = (cur_dir->file    == nullptr) ? EmptyEntry : cur_dir->file->entry_offset;
@@ -235,7 +233,8 @@ namespace ams::mitm::fs {
                 writer->FinishFileTable();
             }
 
-            void WriteDirectoryTable(LayeredTree *tree, MetadataWriter *writer) {
+            void WriteDirectoryTable(LayeredTree *tree, MetadataWriter *writer, const MetadataLayout &layout) {
+                BucketTable buckets(AllocationType_TableCache, GetBucketCount(layout.dir_bucket_size));
                 while (BuildDirectoryContext * const cur_dir = tree->GetFrontDirectory()) {
                     DirectoryEntry * const cur_entry = writer->AppendDirectoryEntry(cur_dir->name_len);
 
@@ -244,7 +243,7 @@ namespace ams::mitm::fs {
                     cur_entry->sibling = cur_dir->sibling_offset;
                     cur_entry->child   = cur_dir->child_offset;
                     cur_entry->file    = cur_dir->file_offset;
-                    cur_entry->hash    = cur_dir->hash_value;
+                    buckets.ChainEntry(cur_entry, cur_dir->entry_offset, cur_dir->parent_offset, cur_dir->name, cur_dir->name_len);
 
                     /* Set name. */
                     SetEntryName(cur_entry, cur_dir->name, cur_dir->name_len);
@@ -252,7 +251,7 @@ namespace ams::mitm::fs {
                     tree->RemoveFrontDirectory();
                 }
 
-                writer->FinishDirectoryTable();
+                writer->WriteDirectoryBuckets(buckets);
             }
 
             void FillHeader(Header *header, const MetadataLayout &layout, s64 file_partition_size) {
@@ -295,11 +294,10 @@ namespace ams::mitm::fs {
             out_infos->EmplaceBack(0, sizeof(*header), DataSourceType::Memory, header);
 
             WriteBuckets(std::addressof(writer), &MetadataWriter::AppendFileBuckets,      tree->GetFiles(),       layout.file_bucket_size);
-            WriteBuckets(std::addressof(writer), &MetadataWriter::AppendDirectoryBuckets, tree->GetDirectories(), layout.dir_bucket_size);
 
             DecoupleContexts(tree);
             WriteFileTable(tree, out_infos, std::addressof(writer));
-            WriteDirectoryTable(tree, std::addressof(writer));
+            WriteDirectoryTable(tree, std::addressof(writer), layout);
 
             FillHeader(header, layout, file_partition_size);
 

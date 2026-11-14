@@ -61,10 +61,9 @@ namespace ams::mitm::fs::romfs {
         };
         const u32 name_len;
         u32 entry_offset;
-        u32 hash_value;
         char name[];
 
-        BuildDirectoryContext(size_t len, BuildDirectoryContext *p) : parent(p), child(nullptr), sibling(nullptr), file(nullptr), name_len(static_cast<u32>(len)), entry_offset(0), hash_value(EmptyEntry) { /* ... */ }
+        BuildDirectoryContext(size_t len, BuildDirectoryContext *p) : parent(p), child(nullptr), sibling(nullptr), file(nullptr), name_len(static_cast<u32>(len)), entry_offset(0) { /* ... */ }
 
         void operator delete(BuildDirectoryContext *ctx, std::destroying_delete_t) {
             const size_t size = ContextAllocationSize<BuildDirectoryContext>(ctx->name_len);
@@ -87,18 +86,6 @@ namespace ams::mitm::fs::romfs {
             }
 
             return AppendChildPart(dst, this->parent->GetPath(dst), this->name, this->name_len);
-        }
-
-        bool HasHashMark() const {
-            return reinterpret_cast<uintptr_t>(this->sibling) & UINT64_C(0x8000000000000000);
-        }
-
-        void SetHashMark() {
-            this->sibling = reinterpret_cast<BuildDirectoryContext *>(reinterpret_cast<uintptr_t>(this->sibling) | UINT64_C(0x8000000000000000));
-        }
-
-        void ClearHashMark() {
-            this->sibling = reinterpret_cast<BuildDirectoryContext *>(reinterpret_cast<uintptr_t>(this->sibling) & ~UINT64_C(0x8000000000000000));
         }
     };
 

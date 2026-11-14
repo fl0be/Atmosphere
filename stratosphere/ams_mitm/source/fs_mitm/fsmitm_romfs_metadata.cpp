@@ -54,7 +54,7 @@ namespace ams::mitm::fs {
             AMS_ABORT_UNLESS(read == size);
         }
 
-        MetadataWriter::MetadataWriter(MetadataFile *file) : m_file(file), m_layout{}, m_dir_buckets_written(0), m_file_buckets_written(0) { /* ... */ }
+        MetadataWriter::MetadataWriter(MetadataFile *file) : m_file(file), m_layout{}, m_dir_buckets_written(false), m_file_buckets_written(0) { /* ... */ }
 
         void MetadataWriter::Create(const MetadataLayout &layout) {
             m_file->Create(layout.TotalSize());
@@ -68,10 +68,14 @@ namespace ams::mitm::fs {
             return m_dir_table->AppendEntry(name_len);
         }
 
-        void MetadataWriter::FinishDirectoryTable() {
+        void MetadataWriter::WriteDirectoryBuckets(const BucketTable &buckets) {
+            AMS_ABORT_UNLESS(!m_dir_buckets_written);
             AMS_ABORT_UNLESS(m_dir_table.has_value() || m_layout.dir_entry_size == 0);
+            AMS_ABORT_UNLESS(buckets.m_buckets.GetSize() == m_layout.dir_bucket_size);
 
+            R_ABORT_UNLESS(fsFileWrite(std::addressof(m_file->m_file), m_layout.DirBucketOffset(), buckets.m_buckets.GetBuffer(), m_layout.dir_bucket_size, FsWriteOption_None));
             m_dir_table.reset();
+            m_dir_buckets_written = true;
         }
 
         FileEntry *MetadataWriter::AppendFileEntry(u32 name_len) {
@@ -87,13 +91,6 @@ namespace ams::mitm::fs {
             m_file_table.reset();
         }
 
-        void MetadataWriter::AppendDirectoryBuckets(const void *src, size_t size) {
-            AMS_ABORT_UNLESS(m_dir_buckets_written + size <= m_layout.dir_bucket_size);
-
-            R_ABORT_UNLESS(fsFileWrite(std::addressof(m_file->m_file), m_layout.DirBucketOffset() + m_dir_buckets_written, src, size, FsWriteOption_None));
-            m_dir_buckets_written += size;
-        }
-
         void MetadataWriter::AppendFileBuckets(const void *src, size_t size) {
             AMS_ABORT_UNLESS(m_file_buckets_written + size <= m_layout.file_bucket_size);
 
@@ -104,7 +101,7 @@ namespace ams::mitm::fs {
         void MetadataWriter::Finish() {
             AMS_ABORT_UNLESS(m_file->IsOpen());
             AMS_ABORT_UNLESS(!m_dir_table.has_value() && !m_file_table.has_value());
-            AMS_ABORT_UNLESS(m_dir_buckets_written == m_layout.dir_bucket_size && m_file_buckets_written == m_layout.file_bucket_size);
+            AMS_ABORT_UNLESS(m_dir_buckets_written && m_file_buckets_written == m_layout.file_bucket_size);
 
             m_file->Flush();
         }
