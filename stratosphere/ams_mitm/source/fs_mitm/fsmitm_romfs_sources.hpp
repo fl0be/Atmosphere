@@ -185,6 +185,8 @@ namespace ams::mitm::fs::romfs {
             SourceInfoChunks();
             ~SourceInfoChunks();
 
+            size_t GetCount() const { return m_count; }
+
             const SourceInfo &operator[](size_t i) const {
                 AMS_ABORT_UNLESS(i < m_count);
                 return *this->GetSource(i);
