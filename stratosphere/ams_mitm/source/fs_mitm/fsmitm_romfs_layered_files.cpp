@@ -136,11 +136,6 @@ namespace ams::mitm::fs {
 
             void DecoupleContexts(LayeredTree *tree) {
                 /* Replace sibling pointers with sibling entry_offsets, so that we can de-allocate as we go. */
-                /* Set all directories file offsets. */
-                for (BuildDirectoryContext * const cur_dir : tree->GetDirectories()) {
-                    cur_dir->file_offset    = (cur_dir->file    == nullptr) ? EmptyEntry : cur_dir->file->entry_offset;
-                }
-
                 /* Replace all files' sibling pointers. */
                 for (BuildFileContext * const cur_file : tree->GetFiles()) {
                     cur_file->ClearHashMark();
@@ -161,6 +156,10 @@ namespace ams::mitm::fs {
                     cur_entry->offset  = cur_file->offset;
                     cur_entry->size    = cur_file->size;
                     cur_entry->hash    = cur_file->hash_value;
+
+                    if (cur_file->parent->first_file_entry_offset == EmptyEntry) {
+                        cur_file->parent->first_file_entry_offset = cur_file->entry_offset;
+                    }
 
                     /* Set name. */
                     SetEntryName(cur_entry, cur_file->name, cur_file->name_len);

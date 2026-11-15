@@ -67,7 +67,7 @@ namespace ams::mitm::fs {
                     cur_entry->parent  = parent_offset;
                     cur_entry->sibling = cur_dir->sibling_entry_offset;
                     cur_entry->child   = cur_dir->child_entry_offset;
-                    cur_entry->file    = cur_dir->file_offset;
+                    cur_entry->file    = cur_dir->first_file_entry_offset;
                     buckets.ChainEntry(cur_entry, cur_dir->entry_offset, parent_offset, cur_dir->name, cur_dir->name_len);
 
                     /* Set name. */

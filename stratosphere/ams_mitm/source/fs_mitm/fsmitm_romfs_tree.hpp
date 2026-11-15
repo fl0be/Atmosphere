@@ -45,17 +45,15 @@ namespace ams::mitm::fs::romfs {
 
         BuildDirectoryContext * const parent;
         BuildDirectoryContext *child;
-        union {
-            BuildFileContext *file;
-            u32 file_offset;
-        };
+        BuildFileContext *file;
         u32 child_entry_offset;
         u32 sibling_entry_offset;
+        u32 first_file_entry_offset;
         const u32 name_len;
         u32 entry_offset;
         char name[];
 
-        BuildDirectoryContext(size_t len, BuildDirectoryContext *p) : parent(p), child(nullptr), file(nullptr), child_entry_offset(EmptyEntry), sibling_entry_offset(EmptyEntry), name_len(static_cast<u32>(len)), entry_offset(0) { /* ... */ }
+        BuildDirectoryContext(size_t len, BuildDirectoryContext *p) : parent(p), child(nullptr), file(nullptr), child_entry_offset(EmptyEntry), sibling_entry_offset(EmptyEntry), first_file_entry_offset(EmptyEntry), name_len(static_cast<u32>(len)), entry_offset(0) { /* ... */ }
 
         void operator delete(BuildDirectoryContext *ctx, std::destroying_delete_t) {
             const size_t size = ContextAllocationSize<BuildDirectoryContext>(ctx->name_len);
