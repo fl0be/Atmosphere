@@ -95,13 +95,6 @@ namespace ams::mitm::fs {
         }
 
         void Build(LayeredTree *tree, SourceInfoChunks *out_infos, Header *header, MetadataFile *metadata) {
-            /* Open an SD card filesystem. */
-            FsFileSystem sd_filesystem;
-            R_ABORT_UNLESS(fsOpenSdCardFileSystem(std::addressof(sd_filesystem)));
-            ON_SCOPE_EXIT { fsFsClose(std::addressof(sd_filesystem)); };
-
-            std::memset(header, 0x00, sizeof(*header));
-
             MetadataLayout layout = {};
             PlaceDirectories(tree, std::addressof(layout));
             const MeasuredFiles files = SortAndMeasureFiles(tree, std::addressof(layout));
@@ -112,7 +105,7 @@ namespace ams::mitm::fs {
 
             out_infos->Initialize(HeaderSources + files.sources + MetadataSources);
 
-            /* Emplace metadata source info. */
+            /* Emplace header source info. */
             out_infos->EmplaceBack(0, sizeof(*header), DataSourceType::Memory, header);
 
             WriteFileTableAndSources(tree, files, std::addressof(writer), layout, out_infos);

@@ -37,7 +37,7 @@ namespace ams::mitm::fs {
                 R_ABORT_UNLESS(mitm::fs::OpenAtmosphereRomfsDirectory(out, program_id, g_fs_romfs_path_buffer, mode, fs));
             }
 
-            void VisitDirectory(LayeredTree *tree, ncm::ProgramId program_id, ::FsDirectoryEntry *dir_entry, FsFileSystem *fs, BuildDirectoryContext *parent) {
+            void VisitSdDirectory(LayeredTree *tree, ncm::ProgramId program_id, ::FsDirectoryEntry *dir_entry, FsFileSystem *fs, BuildDirectoryContext *parent) {
                 FsDir dir;
 
                 /* Get number of child directories. */
@@ -81,13 +81,13 @@ namespace ams::mitm::fs {
 
                     AMS_ABORT_UNLESS(num_child_dirs == cur_child_dir_ind);
                     for (s64 i = 0; i < num_child_dirs; i++) {
-                        VisitDirectory(tree, program_id, dir_entry, fs, child_dirs[i]);
+                        VisitSdDirectory(tree, program_id, dir_entry, fs, child_dirs[i]);
                     }
                 }
 
             }
 
-            void VisitDirectory(LayeredTree *tree, DataSourceType source_type, BuildDirectoryContext *parent, u32 parent_offset, const Header &header, DirectoryTableReader &dir_table, FileTableReader &file_table) {
+            void VisitStorageDirectory(LayeredTree *tree, DataSourceType source_type, BuildDirectoryContext *parent, u32 parent_offset, const Header &header, DirectoryTableReader &dir_table, FileTableReader &file_table) {
                 const DirectoryEntry *parent_entry = dir_table.GetEntry(parent_offset);
                 if (AMS_UNLIKELY(parent_entry == nullptr)) {
                     return;
@@ -121,7 +121,7 @@ namespace ams::mitm::fs {
                         __asm__ __volatile__("" ::: "memory");
                     }
 
-                    VisitDirectory(tree, source_type, real_child, cur_child_offset, header, dir_table, file_table);
+                    VisitStorageDirectory(tree, source_type, real_child, cur_child_offset, header, dir_table, file_table);
 
                     cur_child_offset = next_child_offset;
                 }
@@ -145,7 +145,7 @@ namespace ams::mitm::fs {
             }
 
             ::FsDirectoryEntry dir_entry;
-            VisitDirectory(tree, program_id, std::addressof(dir_entry), std::addressof(sd_filesystem), tree->GetRoot());
+            VisitSdDirectory(tree, program_id, std::addressof(dir_entry), std::addressof(sd_filesystem), tree->GetRoot());
         }
 
         void AddStorageFiles(LayeredTree *tree, ams::fs::IStorage *storage, DataSourceType source_type) {
@@ -160,7 +160,7 @@ namespace ams::mitm::fs {
             DirectoryTableReader dir_table(storage, header.directory_entry_offset, header.directory_entry_size);
             FileTableReader file_table(storage, header.file_entry_offset, header.file_entry_size);
 
-            VisitDirectory(tree, source_type, tree->GetRoot(), 0x0, header, dir_table, file_table);
+            VisitStorageDirectory(tree, source_type, tree->GetRoot(), 0x0, header, dir_table, file_table);
         }
 
     }
