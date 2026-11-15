@@ -26,6 +26,20 @@ namespace ams::mitm::fs {
 
     namespace romfs {
 
+        namespace {
+
+            Header ReadHeader(ams::fs::IStorage *storage) {
+                Header header;
+                R_ABORT_UNLESS(storage->Read(0, std::addressof(header), sizeof(header)));
+
+                s64 size = 0;
+                R_ABORT_UNLESS(storage->GetSize(std::addressof(size)));
+                AMS_ABORT_UNLESS(IsValidHeader(header, size));
+                return header;
+            }
+
+        }
+
         Romfs::Romfs(std::unique_ptr<IStorage> s_r, std::unique_ptr<IStorage> f_r, ncm::ProgramId pr_id) : m_storage_romfs(std::move(s_r)), m_file_romfs(std::move(f_r)), m_program_id(std::move(pr_id)), m_header(), m_metadata(m_program_id) {
             /* ... */
         }
@@ -38,10 +52,10 @@ namespace ams::mitm::fs {
                 AddSdFiles(std::addressof(tree), m_program_id);
             }
             if (m_file_romfs) {
-                AddStorageFiles(std::addressof(tree), m_file_romfs.get(), DataSourceType::File);
+                AddStorage(std::addressof(tree), m_file_romfs.get(), DataSourceType::File, ReadHeader(m_file_romfs.get()));
             }
             if (m_storage_romfs) {
-                AddStorageFiles(std::addressof(tree), m_storage_romfs.get(), DataSourceType::Storage);
+                AddStorage(std::addressof(tree), m_storage_romfs.get(), DataSourceType::Storage, ReadHeader(m_storage_romfs.get()));
             }
 
             Build(std::addressof(tree), std::addressof(m_source_infos), std::addressof(m_header), std::addressof(m_metadata));

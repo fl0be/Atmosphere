@@ -148,14 +148,7 @@ namespace ams::mitm::fs {
             VisitSdDirectory(tree, program_id, std::addressof(dir_entry), std::addressof(sd_filesystem), tree->GetRoot());
         }
 
-        void AddStorageFiles(LayeredTree *tree, ams::fs::IStorage *storage, DataSourceType source_type) {
-            Header header;
-            R_ABORT_UNLESS(storage->Read(0, std::addressof(header), sizeof(Header)));
-
-            s64 size = 0;
-            R_ABORT_UNLESS(storage->GetSize(std::addressof(size)));
-            AMS_ABORT_UNLESS(IsValidHeader(header, size));
-
+        void AddStorage(LayeredTree *tree, ams::fs::IStorage *storage, DataSourceType source_type, const Header &header) {
             /* Read tables. */
             DirectoryTableReader dir_table(storage, header.directory_entry_offset, header.directory_entry_size);
             FileTableReader file_table(storage, header.file_entry_offset, header.file_entry_size);

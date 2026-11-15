@@ -16,6 +16,7 @@
 
 #pragma once
 #include <stratosphere.hpp>
+#include "fsmitm_romfs_format.hpp"
 #include "fsmitm_romfs_sources.hpp"
 
 namespace ams::mitm::fs::romfs {
@@ -23,6 +24,6 @@ namespace ams::mitm::fs::romfs {
     class LayeredTree;
 
     void AddSdFiles(LayeredTree *tree, ncm::ProgramId program_id);
-    void AddStorageFiles(LayeredTree *tree, ams::fs::IStorage *storage, DataSourceType source_type);
+    void AddStorage(LayeredTree *tree, ams::fs::IStorage *storage, DataSourceType source_type, const Header &header);
 
 }
