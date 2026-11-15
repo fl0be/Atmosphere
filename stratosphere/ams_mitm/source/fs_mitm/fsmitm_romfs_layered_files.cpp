@@ -87,13 +87,12 @@ namespace ams::mitm::fs {
 
                         /* Check if extra padding is present in original source, preserve it to make our life easier. */
                         const bool is_storage_or_file = file->type == DataSourceType::Storage || file->type == DataSourceType::File;
-                        file->starts_source = !(m_prev_type == file->type && is_storage_or_file);
-                        if (!file->starts_source) {
+                        file->starts_source = true;
+                        if (m_prev_type == file->type && is_storage_or_file) {
                             const s64 expected = m_size - m_prev_offset + m_prev_orig_offset;
-                            if (expected != file->orig_offset) {
-                                AMS_ABORT_UNLESS(expected <= file->orig_offset);
-                                m_size += file->orig_offset - expected;
-                            }
+                            AMS_ABORT_UNLESS(expected <= file->orig_offset);
+                            m_size += file->orig_offset - expected;
+                            file->starts_source = false;
                         }
 
                         file->offset = m_size;
